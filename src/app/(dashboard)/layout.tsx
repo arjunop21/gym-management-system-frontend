@@ -51,8 +51,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       >
         <div className="flex items-center justify-between h-16 px-6 border-b border-border bg-[var(--primary)] text-white">
           <div className="flex items-center space-x-2 font-bold text-xl">
-            <Dumbbell className="h-6 w-6" />
-            <span>Cochin Fitness Studio</span>
+            <img src="https://drive.google.com/uc?export=view&id=12g6E8pdFlqyynrtogN63itWb0xIUij3g" alt="Logo" className="w-10 h-auto object-contain rounded drop-shadow-md" />
+            <span>Cochin Fitness</span>
           </div>
           <button className="lg:hidden text-white" onClick={() => setSidebarOpen(false)}>
             <X className="h-6 w-6" />

@@ -80,10 +80,21 @@ export default function MembersPage() {
     }
   };
 
-  const filteredMembers = members.filter((member: any) => {
+  const filteredMembers = members.map((member: any) => {
+    let dynamicStatus = member.status;
+    if (member.status === 'Active' && member.expiryDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const expDate = new Date(member.expiryDate);
+      if (expDate < today) {
+        dynamicStatus = 'Expired';
+      }
+    }
+    return { ...member, dynamicStatus };
+  }).filter((member: any) => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           member.phone.includes(searchTerm);
-    const matchesStatus = filterStatus === "All" || member.status === filterStatus;
+    const matchesStatus = filterStatus === "All" || member.dynamicStatus === filterStatus;
     return matchesSearch && matchesStatus;
   });
 
@@ -146,7 +157,7 @@ export default function MembersPage() {
             </thead>
             <tbody>
               {filteredMembers.map((member: any) => (
-                <tr key={member._id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                <tr key={member._id} className={`border-b last:border-0 transition-colors ${member.dynamicStatus === 'Expired' ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'}`}>
                   <td className="p-4">
                     <div className="font-semibold text-[var(--foreground)]">{member.name}</div>
                     <div className="text-xs text-[var(--muted-foreground)]">ID: {member._id.substr(member._id.length - 6).toUpperCase()}</div>
@@ -161,14 +172,16 @@ export default function MembersPage() {
                   </td>
                   <td className="p-4">
                     {member.personalTraining ? (
-                      <div className="text-sm font-medium text-blue-600">{member.personalTrainerId?.name || "Unassigned"}</div>
+                      <div className="text-sm font-medium text-blue-600">
+                        {staff.find(s => s._id === (member.personalTrainerId?._id || member.personalTrainerId))?.name || "Unassigned"}
+                      </div>
                     ) : (
                       <div className="text-sm text-gray-400">No Personal Trainer</div>
                     )}
                   </td>
                   <td className="p-4 text-center">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${member.status === 'Active' ? 'bg-green-100 text-green-700' : member.status === 'Temporary Discontinue' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700'}`}>
-                      {member.status}
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${member.dynamicStatus === 'Active' ? 'bg-green-100 text-green-700' : member.dynamicStatus === 'Temporary Discontinue' ? 'bg-gray-100 text-gray-600' : 'bg-red-100 text-red-700'}`}>
+                      {member.dynamicStatus}
                     </span>
                   </td>
                   <td className="p-4 text-center text-sm font-medium text-[var(--muted-foreground)]">

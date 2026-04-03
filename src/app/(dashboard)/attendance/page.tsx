@@ -11,6 +11,7 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState("");
   const [status, setStatus] = useState("Present");
+  const [filterDate, setFilterDate] = useState("");
 
   const fetchData = async () => {
     try {
@@ -91,8 +92,14 @@ export default function AttendancePage() {
 
         {/* Recent Attendance Logs */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-[var(--separator)] overflow-hidden flex flex-col">
-          <div className="p-6 border-b">
+          <div className="p-6 border-b flex justify-between items-center">
             <h2 className="text-xl font-bold text-[var(--foreground)]">Recent Logs</h2>
+            <input 
+              type="date" 
+              className="border p-2 rounded-xl text-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none shadow-sm"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+            />
           </div>
           <div className="overflow-x-auto flex-1 h-[400px]">
             <table className="w-full text-left border-collapse">
@@ -105,7 +112,9 @@ export default function AttendancePage() {
                 </tr>
               </thead>
               <tbody>
-                {attendanceLogs.slice().reverse().map((log: any) => (
+                {attendanceLogs
+                  .filter((log: any) => !filterDate || format(new Date(log.date), 'yyyy-MM-dd') === filterDate)
+                  .slice().reverse().map((log: any) => (
                   <tr key={log._id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                     <td className="p-4">
                       <div className="font-semibold text-[var(--foreground)]">{log.memberId?.name || "Unknown"}</div>
