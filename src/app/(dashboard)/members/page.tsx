@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import {
   Plus, Edit2, Trash2, Search, Filter, CalendarDays,
-  Camera, Upload, X, ImageIcon, Loader2, User
+  Camera, Upload, X, ImageIcon, Loader2, User, FileText
 } from "lucide-react";
 import { format } from "date-fns";
 import Pagination from "@/components/Pagination";
@@ -12,7 +12,13 @@ import Image from "next/image";
 
 const PAGE_SIZE = 5;
 const MAX_FILE_MB = 5;
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const ALLOWED_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+];
 
 // ── Photo Viewer Modal ─────────────────────────────────────────────
 function PhotoModal({ member, onClose }: { member: any; onClose: () => void }) {
@@ -64,6 +70,7 @@ function ImageUploadField({
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview]     = useState<string>(photoUrl);
+  const [previewType, setPreviewType] = useState<string>(photoUrl ? "image" : "");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
 
@@ -72,7 +79,7 @@ function ImageUploadField({
 
     // Validate type
     if (!ALLOWED_TYPES.includes(file.type)) {
-      setUploadError("Invalid file type. Use JPEG, PNG, WEBP, or GIF.");
+      setUploadError("Invalid file type. Use JPEG/JPG, PNG, WEBP, GIF, or PDF.");
       return;
     }
     // Validate size
@@ -82,9 +89,15 @@ function ImageUploadField({
     }
 
     // Local preview
-    const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target?.result as string);
-    reader.readAsDataURL(file);
+    if (file.type === "application/pdf") {
+      setPreviewType("pdf");
+      setPreview("");
+    } else {
+      setPreviewType("image");
+      const reader = new FileReader();
+      reader.onload = (e) => setPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
 
     // Upload to backend → Firebase
     setUploading(true);
@@ -96,8 +109,14 @@ function ImageUploadField({
       });
       onPhotoUploaded(res.data.url);
     } catch (err: any) {
-      setUploadError(err?.response?.data?.message || "Upload failed. Try again.");
+      const status = err?.response?.status;
+      if (status === 404) {
+        setUploadError("Upload service not found (404). Please check backend route /upload/member-image.");
+      } else {
+        setUploadError(err?.response?.data?.message || "Upload failed. Try again.");
+      }
       setPreview(photoUrl); // revert preview
+      setPreviewType(photoUrl ? "image" : "");
     } finally {
       setUploading(false);
     }
@@ -116,6 +135,7 @@ function ImageUploadField({
 
   const clearPhoto = () => {
     setPreview("");
+    setPreviewType("");
     onPhotoUploaded("");
     if (fileInputRef.current)   fileInputRef.current.value   = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
@@ -125,17 +145,24 @@ function ImageUploadField({
     <div>
       <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-2">
         Member Photo
-        <span className="ml-1 text-xs font-normal text-gray-400">(JPEG / PNG / WEBP · max 5 MB)</span>
+        <span className="ml-1 text-xs font-normal text-gray-400">(JPEG/JPG / PNG / WEBP / GIF / PDF · max 5 MB)</span>
       </label>
 
-      {preview ? (
+      {preview || previewType === "pdf" ? (
         // Preview card
         <div className="relative flex flex-col items-center gap-3 p-4 border rounded-xl bg-gray-50">
-          <img
-            src={preview}
-            alt="Preview"
-            className="w-28 h-28 rounded-xl object-cover shadow border"
-          />
+          {previewType === "pdf" ? (
+            <div className="w-28 h-28 rounded-xl border bg-white shadow flex flex-col items-center justify-center text-xs font-semibold text-gray-600">
+              <FileText size={24} className="text-red-500 mb-1" />
+              PDF
+            </div>
+          ) : (
+            <img
+              src={preview}
+              alt="Preview"
+              className="w-28 h-28 rounded-xl object-cover shadow border"
+            />
+          )}
           {uploading && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
               <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
@@ -203,7 +230,7 @@ function ImageUploadField({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf"
         onChange={handleInputChange}
         className="hidden"
       />
@@ -219,7 +246,9 @@ function ImageUploadField({
       />
 
       {uploadError && (
-        <p className="mt-1.5 text-xs text-red-500 font-medium">{uploadError}</p>
+        <div className="mt-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          {uploadError}
+        </div>
       )}
     </div>
   );
