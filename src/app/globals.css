@@ -27,7 +27,7 @@
     --foreground: #1a1a1a;
     --card: #ffffff;
     --card-foreground: #1a1a1a;
-    --primary: #696969;
+    --primary: #444343;
     --primary-foreground: #ffffff;
     --secondary: #C4C4C4;
     --secondary-foreground: #1a1a1a;
@@ -42,7 +42,9 @@
     --separator: #C4C4C4;
   }
 
-  *, ::before, ::after {
+  *,
+  ::before,
+  ::after {
     border-color: var(--border);
   }
 
@@ -60,13 +62,16 @@
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: var(--background);
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--accent);
   border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
 }

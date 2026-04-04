@@ -78,10 +78,10 @@ export default function ReportsPage() {
               <LineChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e1e3de" />
                 <XAxis dataKey="name" stroke="#6b705c" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#6b705c" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                <YAxis stroke="#6b705c" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `₹${val}`} />
                 <Tooltip 
                   contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value) => [`$${value}`, 'Revenue']}
+                  formatter={(value) => [`₹${value}`, 'Revenue']}
                 />
                 <Line type="monotone" dataKey="revenue" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
               </LineChart>

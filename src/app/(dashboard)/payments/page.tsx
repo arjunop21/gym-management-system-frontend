@@ -88,7 +88,7 @@ export default function PaymentsPage() {
                   <td className="p-4">
                     <div className="text-sm font-extrabold text-[var(--foreground)] flex items-center gap-1">
                       <CreditCard size={14} className="text-[var(--primary)]" />
-                      ${payment.amount}
+                      ₹{payment.amount}
                     </div>
                   </td>
                   <td className="p-4 text-sm font-medium text-[var(--muted-foreground)]">
@@ -128,7 +128,7 @@ export default function PaymentsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Amount ($)</label>
+                <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Amount (₹)</label>
                 <input required type="number" className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm" value={currentPayment.amount} onChange={e => setCurrentPayment({...currentPayment, amount: e.target.value})} placeholder="0.00" />
               </div>
 

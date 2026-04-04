@@ -81,7 +81,7 @@ export default function PlansPage() {
               <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-1">Plan</div>
               <h2 className="text-2xl font-bold text-[var(--foreground)]">{plan.name}</h2>
               <div className="my-6">
-                <span className="text-4xl font-extrabold text-[var(--primary)]">${plan.price}</span>
+                <span className="text-4xl font-extrabold text-[var(--primary)]">₹{plan.price}</span>
                 <span className="text-[var(--muted-foreground)] font-medium"> / {plan.duration} months</span>
               </div>
             </div>
@@ -103,7 +103,7 @@ export default function PlansPage() {
                 <input required type="text" className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none" value={currentPlan.name} onChange={e => setCurrentPlan({...currentPlan, name: e.target.value})} placeholder="e.g. Premium" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Price ($)</label>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">Price (₹)</label>
                 <input required type="number" className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none" value={currentPlan.price} onChange={e => setCurrentPlan({...currentPlan, price: e.target.value})} placeholder="0" />
               </div>
               <div>

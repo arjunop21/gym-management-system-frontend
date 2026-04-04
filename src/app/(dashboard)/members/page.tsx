@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
-import { Plus, Edit2, Trash2, Search, Filter } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Filter, CalendarDays } from "lucide-react";
 import { format } from "date-fns";
+import Pagination from "@/components/Pagination";
+
+const PAGE_SIZE = 5;
 
 export default function MembersPage() {
   const [members, setMembers] = useState<any[]>([]);
@@ -13,10 +16,25 @@ export default function MembersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [membersPage, setMembersPage] = useState(1);
+
+  const today = format(new Date(), "yyyy-MM-dd");
 
   const [currentMember, setCurrentMember] = useState({
-    id: "", name: "", phone: "", address: "", membershipPlan: "", expiryDate: "", status: "Active", personalTraining: "No", personalTrainerId: ""
+    id: "", name: "", phone: "", address: "", membershipPlan: "", joinDate: today, status: "Active", personalTraining: "No", personalTrainerId: ""
   });
+
+  // Derive computed expiry preview for the modal
+  const getExpiryPreview = () => {
+    if (!currentMember.membershipPlan || !currentMember.joinDate) return null;
+    const plan = plans.find((p: any) => p._id === currentMember.membershipPlan);
+    if (!plan) return null;
+    const expiry = new Date(currentMember.joinDate);
+    expiry.setMonth(expiry.getMonth() + plan.duration);
+    return expiry;
+  };
+
+  const expiryPreview = getExpiryPreview();
 
   const fetchData = async () => {
     try {
@@ -58,6 +76,16 @@ export default function MembersPage() {
     }
   };
 
+  const openAdd = () => {
+    setCurrentMember({
+      id: "", name: "", phone: "", address: "",
+      membershipPlan: plans[0]?._id || "",
+      joinDate: today,
+      status: "Active", personalTraining: "No", personalTrainerId: ""
+    });
+    setIsModalOpen(true);
+  };
+
   const openEdit = (member: any) => {
     setCurrentMember({
       id: member._id,
@@ -65,7 +93,7 @@ export default function MembersPage() {
       phone: member.phone,
       address: member.address,
       membershipPlan: member.membershipPlan?._id || "",
-      expiryDate: member.expiryDate ? format(new Date(member.expiryDate), "yyyy-MM-dd") : "",
+      joinDate: member.joinDate ? format(new Date(member.joinDate), "yyyy-MM-dd") : today,
       status: member.status,
       personalTraining: member.personalTraining ? "Yes" : "No",
       personalTrainerId: member.personalTrainerId?._id || member.personalTrainerId || ""
@@ -83,20 +111,30 @@ export default function MembersPage() {
   const filteredMembers = members.map((member: any) => {
     let dynamicStatus = member.status;
     if (member.status === 'Active' && member.expiryDate) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
       const expDate = new Date(member.expiryDate);
-      if (expDate < today) {
+      if (expDate < todayDate) {
         dynamicStatus = 'Expired';
       }
     }
     return { ...member, dynamicStatus };
   }).filter((member: any) => {
-    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           member.phone.includes(searchTerm);
     const matchesStatus = filterStatus === "All" || member.dynamicStatus === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  // Pagination — reset to page 1 when filters change
+  const handleSearchChange = (val: string) => { setSearchTerm(val); setMembersPage(1); };
+  const handleStatusChange = (val: string) => { setFilterStatus(val); setMembersPage(1); };
+
+  const membersTotalPages = Math.ceil(filteredMembers.length / PAGE_SIZE);
+  const paginatedMembers = filteredMembers.slice(
+    (membersPage - 1) * PAGE_SIZE,
+    membersPage * PAGE_SIZE
+  );
 
   if (loading) return <div className="p-8">Loading members...</div>;
 
@@ -107,8 +145,8 @@ export default function MembersPage() {
           <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">Members Directory</h1>
           <p className="text-[var(--muted-foreground)] text-sm">{filteredMembers.length} Total Members</p>
         </div>
-        <button 
-          onClick={() => { setCurrentMember({ id: "", name: "", phone: "", address: "", membershipPlan: plans[0]?._id || "", expiryDate: "", status: "Active", personalTraining: "No", personalTrainerId: "" }); setIsModalOpen(true); }}
+        <button
+          onClick={openAdd}
           className="flex flex-shrink-0 items-center gap-2 bg-[var(--primary)] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[var(--foreground)] transition-all shadow-md w-full md:w-auto justify-center"
         >
           <Plus size={16} /> Register Member
@@ -118,20 +156,20 @@ export default function MembersPage() {
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-[var(--separator)] flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search by name or phone..." 
+          <input
+            type="text"
+            placeholder="Search by name or phone..."
             className="w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
         <div className="relative w-full sm:w-48">
           <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-          <select 
+          <select
             className="w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none appearance-none bg-white transition-all cursor-pointer"
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
+            onChange={(e) => handleStatusChange(e.target.value)}
           >
             <option value="All">All Status</option>
             <option value="Active">Active</option>
@@ -151,12 +189,13 @@ export default function MembersPage() {
                 <th className="p-4 font-bold">Plan</th>
                 <th className="p-4 font-bold">Trainer</th>
                 <th className="p-4 font-bold text-center">Status</th>
-                <th className="p-4 font-bold text-center">Expiry</th>
+                <th className="p-4 font-bold text-center">Join Date</th>
+                <th className="p-4 font-bold text-center">Expiry Date</th>
                 <th className="p-4 font-bold text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredMembers.map((member: any) => (
+              {paginatedMembers.map((member: any) => (
                 <tr key={member._id} className={`border-b last:border-0 transition-colors ${member.dynamicStatus === 'Expired' ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'}`}>
                   <td className="p-4">
                     <div className="font-semibold text-[var(--foreground)]">{member.name}</div>
@@ -168,7 +207,7 @@ export default function MembersPage() {
                   </td>
                   <td className="p-4">
                     <div className="text-sm font-semibold">{member.membershipPlan?.name || "N/A"}</div>
-                    <div className="text-xs text-[var(--primary)] font-medium">${member.membershipPlan?.price}</div>
+                    <div className="text-xs text-[var(--primary)] font-medium">₹{member.membershipPlan?.price}</div>
                   </td>
                   <td className="p-4">
                     {member.personalTraining ? (
@@ -185,7 +224,16 @@ export default function MembersPage() {
                     </span>
                   </td>
                   <td className="p-4 text-center text-sm font-medium text-[var(--muted-foreground)]">
-                    {member.expiryDate ? format(new Date(member.expiryDate), 'MMM dd, yyyy') : 'N/A'}
+                    <div className="flex items-center justify-center gap-1">
+                      <CalendarDays size={13} className="text-blue-400" />
+                      {member.joinDate ? format(new Date(member.joinDate), 'MMM dd, yyyy') : 'N/A'}
+                    </div>
+                  </td>
+                  <td className="p-4 text-center text-sm font-medium text-[var(--muted-foreground)]">
+                    <div className={`flex items-center justify-center gap-1 ${member.dynamicStatus === 'Expired' ? 'text-red-500 font-semibold' : ''}`}>
+                      <CalendarDays size={13} className={member.dynamicStatus === 'Expired' ? 'text-red-400' : 'text-orange-400'} />
+                      {member.expiryDate ? format(new Date(member.expiryDate), 'MMM dd, yyyy') : 'N/A'}
+                    </div>
                   </td>
                   <td className="p-4 text-center">
                     <div className="flex justify-center gap-2">
@@ -195,9 +243,9 @@ export default function MembersPage() {
                   </td>
                 </tr>
               ))}
-              {filteredMembers.length === 0 && (
+              {paginatedMembers.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-[var(--muted-foreground)] font-medium bg-gray-50">
+                  <td colSpan={8} className="p-8 text-center text-[var(--muted-foreground)] font-medium bg-gray-50">
                     No members found matching your criteria.
                   </td>
                 </tr>
@@ -205,12 +253,22 @@ export default function MembersPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={membersPage}
+          totalPages={membersTotalPages}
+          onPageChange={(p) => setMembersPage(p)}
+          totalItems={filteredMembers.length}
+          itemsPerPage={PAGE_SIZE}
+        />
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
           <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-xl my-8">
-            <h2 className="text-2xl font-bold text-[var(--foreground)] mb-6 border-b pb-4">{currentMember.id ? "Edit Member Details" : "Register New Member"}</h2>
+            <h2 className="text-2xl font-bold text-[var(--foreground)] mb-6 border-b pb-4">
+              {currentMember.id ? "Edit Member Details" : "Register New Member"}
+            </h2>
             <form onSubmit={handleSave} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
@@ -233,7 +291,7 @@ export default function MembersPage() {
                   <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Membership Plan</label>
                   <select required className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white" value={currentMember.membershipPlan} onChange={e => setCurrentMember({...currentMember, membershipPlan: e.target.value})}>
                     <option value="" disabled>Select a plan</option>
-                    {plans.map((p: any) => <option key={p._id} value={p._id}>{p.name} - ${p.price}</option>)}
+                    {plans.map((p: any) => <option key={p._id} value={p._id}>{p.name} - ₹{p.price} ({p.duration} mo)</option>)}
                   </select>
                 </div>
                 <div>
@@ -243,6 +301,27 @@ export default function MembersPage() {
                     <option value="Expired">Expired</option>
                     <option value="Temporary Discontinue">Temporary Discontinue</option>
                   </select>
+                </div>
+              </div>
+
+              {/* Join Date + Expiry Preview */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Join Date</label>
+                  <input
+                    required
+                    type="date"
+                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm"
+                    value={currentMember.joinDate}
+                    onChange={e => setCurrentMember({...currentMember, joinDate: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Expiry Date <span className="text-xs font-normal text-blue-500">(auto-calculated)</span></label>
+                  <div className={`w-full border p-3 rounded-xl shadow-sm text-sm flex items-center gap-2 ${expiryPreview ? 'bg-blue-50 border-blue-200 text-blue-700 font-semibold' : 'bg-gray-50 text-gray-400'}`}>
+                    <CalendarDays size={15} />
+                    {expiryPreview ? format(expiryPreview, 'MMM dd, yyyy') : 'Select plan & join date'}
+                  </div>
                 </div>
               </div>
 
@@ -263,11 +342,6 @@ export default function MembersPage() {
                     </select>
                   </div>
                 )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Expiry Date</label>
-                <input required type="date" className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm" value={currentMember.expiryDate} onChange={e => setCurrentMember({...currentMember, expiryDate: e.target.value})} />
               </div>
 
               <div className="flex gap-4 pt-6 border-t">
