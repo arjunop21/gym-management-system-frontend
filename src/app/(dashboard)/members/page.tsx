@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import {
   Plus, Edit2, Trash2, Search, Filter, CalendarDays,
@@ -256,15 +257,29 @@ function ImageUploadField({
 
 // ── Main Page ──────────────────────────────────────────────────────
 export default function MembersPage() {
+  const searchParams = useSearchParams();
   const [members, setMembers]           = useState<any[]>([]);
   const [plans, setPlans]               = useState<any[]>([]);
   const [staff, setStaff]               = useState<any[]>([]);
   const [loading, setLoading]           = useState(true);
   const [isModalOpen, setIsModalOpen]   = useState(false);
   const [searchTerm, setSearchTerm]     = useState("");
-  const [filterStatus, setFilterStatus] = useState("All");
+  const [filterStatus, setFilterStatus] = useState(() => {
+    // Will be overridden by useEffect, but default to "All"
+    return "All";
+  });
   const [membersPage, setMembersPage]   = useState(1);
-  const [photoMember, setPhotoMember]   = useState<any | null>(null); // for photo viewer
+  const [photoMember, setPhotoMember]   = useState<any | null>(null);
+
+  // Apply ?status= URL param on mount
+  useEffect(() => {
+    const status = searchParams.get("status");
+    const valid = ["All", "Active", "Expired", "Temporary Discontinue"];
+    if (status && valid.includes(status)) {
+      setFilterStatus(status);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const today = format(new Date(), "yyyy-MM-dd");
 

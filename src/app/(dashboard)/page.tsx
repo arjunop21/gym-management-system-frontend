@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import {
   Users, CreditCard, Activity, Ban, MessageSquare,
@@ -230,6 +231,7 @@ function QueueModal({
 
 // ─── Main Dashboard ────────────────────────────────────────────────
 export default function Dashboard() {
+  const router = useRouter();
   const [stats, setStats] = useState({
     totalMembers: 0, activeMembers: 0, expiredMembers: 0, monthlyRevenue: 0,
   });
@@ -355,9 +357,9 @@ export default function Dashboard() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Members"   value={stats.totalMembers}            icon={Users}      color="bg-blue-100 text-blue-600" />
-        <StatCard title="Active Members"  value={stats.activeMembers}           icon={Activity}   color="bg-green-100 text-green-600" />
-        <StatCard title="Expired Members" value={stats.expiredMembers}          icon={Ban}        color="bg-red-100 text-red-600" />
+        <StatCard title="Total Members"   value={stats.totalMembers}            icon={Users}      color="bg-blue-100 text-blue-600"                               href="/members?status=All" />
+        <StatCard title="Active Members"  value={stats.activeMembers}           icon={Activity}   color="bg-green-100 text-green-600"                             href="/members?status=Active" />
+        <StatCard title="Expired Members" value={stats.expiredMembers}          icon={Ban}        color="bg-red-100 text-red-600"                                href="/members?status=Expired" />
         <StatCard title="Monthly Revenue" value={`₹${stats.monthlyRevenue}`}    icon={CreditCard} color="bg-[var(--accent)] text-[var(--foreground)]" />
       </div>
 
@@ -463,7 +465,13 @@ export default function Dashboard() {
                           {isCurrentInQueue && (
                             <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                           )}
-                          {member.name}
+                          <button
+                            onClick={() => router.push(`/payments?memberId=${member._id}&fromDashboard=true`)}
+                            className="text-[var(--primary)] hover:underline font-semibold transition-colors hover:text-[var(--foreground)] cursor-pointer"
+                            title="Click to record payment for this member"
+                          >
+                            {member.name}
+                          </button>
                         </div>
                       </td>
                       <td className="p-4 text-sm font-medium text-[var(--muted-foreground)]">
@@ -522,12 +530,23 @@ export default function Dashboard() {
 }
 
 // ─── Stat Card ────────────────────────────────────────────────────
-function StatCard({ title, value, icon: Icon, color }: any) {
+function StatCard({ title, value, icon: Icon, color, href }: any) {
+  const router = useRouter();
+  const isClickable = Boolean(href);
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-[var(--separator)] flex items-center justify-between transition-all hover:shadow-md">
+    <div
+      onClick={() => isClickable && router.push(href)}
+      className={`bg-white p-6 rounded-2xl shadow-sm border border-[var(--separator)] flex items-center justify-between transition-all hover:shadow-md ${
+        isClickable ? "cursor-pointer hover:border-[var(--primary)] hover:scale-[1.02] active:scale-[0.99]" : ""
+      }`}
+      title={isClickable ? `View ${title}` : undefined}
+    >
       <div>
         <p className="text-sm font-medium text-[var(--muted-foreground)] mb-1">{title}</p>
         <p className="text-3xl font-bold text-[var(--foreground)]">{value}</p>
+        {isClickable && (
+          <p className="text-xs text-[var(--primary)] font-medium mt-1 opacity-0 group-hover:opacity-100">View →</p>
+        )}
       </div>
       <div className={`p-4 rounded-full ${color}`}>
         <Icon size={24} />

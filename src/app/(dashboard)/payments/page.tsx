@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Plus, CreditCard, CalendarDays, RefreshCw, Edit2 } from "lucide-react";
+import { Plus, CreditCard, CalendarDays, RefreshCw, Edit2, ArrowLeft, Zap } from "lucide-react";
 import { format } from "date-fns";
 import Pagination from "@/components/Pagination";
 
 const PAGE_SIZE = 5;
 
 export default function PaymentsPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [payments, setPayments] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
@@ -17,6 +21,8 @@ export default function PaymentsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [paymentsPage, setPaymentsPage] = useState(1);
+  // fromDashboard = true when opened via Quick Action link
+  const [fromDashboard, setFromDashboard] = useState(false);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
 
@@ -97,15 +103,54 @@ export default function PaymentsPage() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // ── Auto-open from dashboard Quick Action link ───────────────
+  useEffect(() => {
+    if (loading) return; // wait for members/plans to load first
+    const memberId = searchParams.get("memberId");
+    const isDash   = searchParams.get("fromDashboard") === "true";
+    if (memberId && isDash && members.length > 0) {
+      setFromDashboard(true);
+      setError("");
+      // Pre-fill member — reuse existing handleMemberChange logic inline
+      const member = members.find((m: any) => m._id === memberId);
+      if (member) {
+        const prevExpiry = member.expiryDate
+          ? format(new Date(member.expiryDate), "yyyy-MM-dd")
+          : todayStr;
+        const planId = member.membershipPlan?._id || "";
+        const plan = plans.find((p: any) => p._id === planId);
+        let newExpiry = "";
+        if (plan && prevExpiry) {
+          const d = new Date(prevExpiry);
+          d.setMonth(d.getMonth() + plan.duration);
+          newExpiry = format(d, "yyyy-MM-dd");
+        }
+        setForm({
+          id: "",
+          memberId: member._id,
+          membershipPlan: planId,
+          amount: plan ? String(plan.price) : "",
+          renewDate: prevExpiry,
+          expiryDate: newExpiry,
+          status: "Paid",
+        });
+        setIsModalOpen(true);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, members, plans]);
+
   // ── Open for CREATE ──────────────────────────────────────────
   const openCreate = () => {
     setForm(emptyForm);
+    setFromDashboard(false);
     setError("");
     setIsModalOpen(true);
   };
 
   // ── Open for EDIT ────────────────────────────────────────────
   const openEdit = (payment: any) => {
+    setFromDashboard(false);
     setForm({
       id: payment._id,
       memberId: payment.memberId?._id || "",
@@ -136,6 +181,11 @@ export default function PaymentsPage() {
       }
       setIsModalOpen(false);
       setForm(emptyForm);
+      // If opened from dashboard Quick Action, go back to dashboard
+      if (fromDashboard) {
+        router.push("/");
+        return;
+      }
       fetchData();
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to save payment.");
@@ -147,6 +197,8 @@ export default function PaymentsPage() {
   if (loading) return <div className="p-8">Loading payments...</div>;
 
   const isEdit = Boolean(form.id);
+  // Treat fromDashboard like isEdit for member field locking
+  const memberLocked = isEdit || fromDashboard;
 
   const paymentsTotalPages = Math.ceil(payments.length / PAGE_SIZE);
   const paginatedPayments  = payments.slice(
@@ -262,8 +314,9 @@ export default function PaymentsPage() {
 
       {/* ── Create / Edit Modal ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-lg my-8">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm">
+          <div className="flex min-h-full items-start justify-center p-4 py-8">
+          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-lg">
 
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b pb-4 mb-4">
@@ -276,12 +329,28 @@ export default function PaymentsPage() {
                     Changes will also update the member's join date & expiry date.
                   </p>
                 )}
+                {fromDashboard && (
+                  <p className="text-xs text-orange-500 mt-0.5 font-medium flex items-center gap-1">
+                    <Zap size={11} /> Pre-filled from Quick Action — member is locked.
+                  </p>
+                )}
               </div>
-              {isEdit && (
-                <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2.5 py-1 rounded-full border border-blue-200">
-                  Editing
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {fromDashboard && (
+                  <button
+                    type="button"
+                    onClick={() => { setIsModalOpen(false); router.push("/"); }}
+                    className="text-xs flex items-center gap-1 text-gray-500 hover:text-gray-800 transition border border-gray-200 px-2.5 py-1 rounded-lg font-medium"
+                  >
+                    <ArrowLeft size={12} /> Dashboard
+                  </button>
+                )}
+                {isEdit && (
+                  <span className="text-xs bg-blue-100 text-blue-700 font-bold px-2.5 py-1 rounded-full border border-blue-200">
+                    Editing
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Member info banner */}
@@ -307,14 +376,19 @@ export default function PaymentsPage() {
 
             <form onSubmit={handleSave} className="space-y-4">
 
-              {/* Member — read-only when editing */}
+              {/* Member — read-only when editing OR fromDashboard */}
               <div>
                 <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">
                   Member <span className="text-red-400">*</span>
                 </label>
-                {isEdit ? (
-                  <div className="w-full border p-3 rounded-xl bg-gray-50 text-sm font-medium text-gray-600">
-                    {getSelectedMember()?.name || "Unknown"} — {getSelectedMember()?.phone || ""}
+                {memberLocked ? (
+                  <div className="w-full border p-3 rounded-xl bg-gray-50 text-sm font-medium text-gray-600 flex items-center justify-between">
+                    <span>{getSelectedMember()?.name || "Unknown"} — {getSelectedMember()?.phone || ""}</span>
+                    {fromDashboard && (
+                      <span className="text-xs bg-orange-100 text-orange-600 font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <Zap size={10} /> Locked
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <select
@@ -428,20 +502,25 @@ export default function PaymentsPage() {
               <div className="flex gap-4 pt-4 border-t">
                 <button
                   type="button"
-                  onClick={() => { setIsModalOpen(false); setForm(emptyForm); }}
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setForm(emptyForm);
+                    if (fromDashboard) router.push("/");
+                  }}
                   className="flex-1 px-4 py-3 border rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition-colors"
                 >
-                  Cancel
+                  {fromDashboard ? "← Back to Dashboard" : "Cancel"}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="flex-1 bg-[var(--primary)] text-white px-4 py-3 rounded-xl border border-transparent hover:bg-[var(--foreground)] font-bold shadow-md transition-all disabled:opacity-60"
                 >
-                  {saving ? "Saving…" : isEdit ? "Update Payment" : "Submit Payment"}
+                  {saving ? "Saving…" : isEdit ? "Update Payment" : fromDashboard ? "✅ Record & Return" : "Submit Payment"}
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}
