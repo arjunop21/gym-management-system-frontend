@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { Plus, CreditCard, CalendarDays, RefreshCw, Edit2 } from "lucide-react";
 import { format } from "date-fns";
+import Pagination from "@/components/Pagination";
+
+const PAGE_SIZE = 5;
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<any[]>([]);
@@ -13,6 +16,7 @@ export default function PaymentsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [paymentsPage, setPaymentsPage] = useState(1);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
 
@@ -144,6 +148,12 @@ export default function PaymentsPage() {
 
   const isEdit = Boolean(form.id);
 
+  const paymentsTotalPages = Math.ceil(payments.length / PAGE_SIZE);
+  const paginatedPayments  = payments.slice(
+    (paymentsPage - 1) * PAGE_SIZE,
+    paymentsPage * PAGE_SIZE
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -177,7 +187,7 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {payments.map((payment: any) => (
+              {paginatedPayments.map((payment: any) => (
                 <tr key={payment._id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                   <td className="p-4">
                     <div className="font-semibold text-[var(--foreground)]">{payment.memberId?.name || "Unknown"}</div>
@@ -230,7 +240,7 @@ export default function PaymentsPage() {
                   </td>
                 </tr>
               ))}
-              {payments.length === 0 && (
+              {paginatedPayments.length === 0 && (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-[var(--muted-foreground)] font-medium bg-gray-50">
                     No payment history found.
@@ -240,6 +250,14 @@ export default function PaymentsPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={paymentsPage}
+          totalPages={paymentsTotalPages}
+          onPageChange={(p) => setPaymentsPage(p)}
+          totalItems={payments.length}
+          itemsPerPage={PAGE_SIZE}
+        />
       </div>
 
       {/* ── Create / Edit Modal ── */}
