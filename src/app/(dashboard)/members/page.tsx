@@ -506,99 +506,183 @@ export default function MembersPage() {
 
       {/* Register / Edit Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl w-full max-w-xl my-8">
-            <h2 className="text-2xl font-bold text-[var(--foreground)] mb-6 border-b pb-4">
-              {currentMember.id ? "Edit Member Details" : "Register New Member"}
-            </h2>
-            <form onSubmit={handleSave} className="space-y-5">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-20 sm:pt-10">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl flex flex-col mb-8">
 
-              {/* Photo Upload */}
-              <ImageUploadField
-                photoUrl={currentMember.photo}
-                onPhotoUploaded={(url) => setCurrentMember({ ...currentMember, photo: url })}
-              />
+            {/* Sticky header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0">
+              <h2 className="text-lg font-bold text-[var(--foreground)]">
+                {currentMember.id ? "Edit Member" : "Register Member"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 rounded-xl hover:bg-gray-100 transition text-gray-400"
+              >
+                <X size={20} />
+              </button>
+            </div>
 
-              {/* Name + Phone */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Form body */}
+            <div className="px-5 py-5">
+              <form onSubmit={handleSave} className="space-y-5" id="member-form">
+
+                {/* Photo Upload */}
+                <ImageUploadField
+                  photoUrl={currentMember.photo}
+                  onPhotoUploaded={(url) => setCurrentMember({ ...currentMember, photo: url })}
+                />
+
+                {/* ── Basic Info ── */}
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-1">Basic Info</p>
+
                 <div>
                   <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Full Name</label>
-                  <input required type="text" className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm" value={currentMember.name} onChange={(e) => setCurrentMember({ ...currentMember, name: e.target.value })} placeholder="John Doe" />
+                  <input
+                    required type="text"
+                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm text-base"
+                    value={currentMember.name}
+                    onChange={(e) => setCurrentMember({ ...currentMember, name: e.target.value })}
+                    placeholder="John Doe"
+                  />
                 </div>
+
                 <div>
                   <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Phone Number</label>
-                  <input required type="text" className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm" value={currentMember.phone} onChange={(e) => setCurrentMember({ ...currentMember, phone: e.target.value })} placeholder="+91 98765 43210" />
+                  <input
+                    required type="tel"
+                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm text-base"
+                    value={currentMember.phone}
+                    onChange={(e) => setCurrentMember({ ...currentMember, phone: e.target.value })}
+                    placeholder="+91 98765 43210"
+                  />
                 </div>
-              </div>
 
-              {/* Address */}
-              <div>
-                <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Address</label>
-                <textarea rows={2} className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm resize-none" value={currentMember.address} onChange={(e) => setCurrentMember({ ...currentMember, address: e.target.value })} placeholder="123 Main St..." />
-              </div>
+                <div>
+                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Address</label>
+                  <textarea
+                    rows={2}
+                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm resize-none text-base"
+                    value={currentMember.address}
+                    onChange={(e) => setCurrentMember({ ...currentMember, address: e.target.value })}
+                    placeholder="123 Main St..."
+                  />
+                </div>
 
-              {/* Plan + Status */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* ── Membership ── */}
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-1">Membership</p>
+
                 <div>
                   <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Membership Plan</label>
-                  <select required className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white" value={currentMember.membershipPlan} onChange={(e) => setCurrentMember({ ...currentMember, membershipPlan: e.target.value })}>
+                  <select
+                    required
+                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
+                    value={currentMember.membershipPlan}
+                    onChange={(e) => setCurrentMember({ ...currentMember, membershipPlan: e.target.value })}
+                  >
                     <option value="" disabled>Select a plan</option>
                     {plans.map((p: any) => <option key={p._id} value={p._id}>{p.name} - ₹{p.price} ({p.duration} mo)</option>)}
                   </select>
                 </div>
+
                 <div>
                   <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Status</label>
-                  <select required className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white" value={currentMember.status} onChange={(e) => setCurrentMember({ ...currentMember, status: e.target.value })}>
+                  <select
+                    required
+                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
+                    value={currentMember.status}
+                    onChange={(e) => setCurrentMember({ ...currentMember, status: e.target.value })}
+                  >
                     <option value="Active">Active</option>
                     <option value="Expired">Expired</option>
                     <option value="Temporary Discontinue">Temporary Discontinue</option>
                   </select>
                 </div>
-              </div>
 
-              {/* Join Date + Expiry Preview */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* ── Dates ── */}
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-1">Dates</p>
+
                 <div>
                   <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Join Date</label>
-                  <input required type="date" className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm" value={currentMember.joinDate} onChange={(e) => setCurrentMember({ ...currentMember, joinDate: e.target.value })} />
+                  <input
+                    required type="date"
+                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
+                    value={currentMember.joinDate}
+                    onChange={(e) => setCurrentMember({ ...currentMember, joinDate: e.target.value })}
+                  />
                 </div>
+
                 <div>
                   <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">
-                    Expiry Date <span className="text-xs font-normal text-blue-500">(auto-calculated)</span>
+                    Expiry Date
+                    <span className="ml-1.5 text-xs font-normal text-blue-500">(auto-calculated)</span>
                   </label>
-                  <div className={`w-full border p-3 rounded-xl shadow-sm text-sm flex items-center gap-2 ${expiryPreview ? "bg-blue-50 border-blue-200 text-blue-700 font-semibold" : "bg-gray-50 text-gray-400"}`}>
-                    <CalendarDays size={15} />
+                  <div className={`w-full border p-3 rounded-xl shadow-sm text-sm font-semibold flex items-center gap-2 ${
+                    expiryPreview
+                      ? "bg-blue-50 border-blue-200 text-blue-700"
+                      : "bg-gray-50 text-gray-400"
+                  }`}>
+                    <CalendarDays size={16} className="flex-shrink-0" />
                     {expiryPreview ? format(expiryPreview, "MMM dd, yyyy") : "Select plan & join date"}
                   </div>
                 </div>
-              </div>
 
-              {/* Personal Training */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* ── Personal Training ── */}
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-1">Personal Training</p>
+
                 <div>
                   <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Personal Training</label>
-                  <select className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white" value={currentMember.personalTraining} onChange={(e) => setCurrentMember({ ...currentMember, personalTraining: e.target.value, personalTrainerId: e.target.value === "No" ? "" : currentMember.personalTrainerId })}>
+                  <select
+                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
+                    value={currentMember.personalTraining}
+                    onChange={(e) => setCurrentMember({
+                      ...currentMember,
+                      personalTraining: e.target.value,
+                      personalTrainerId: e.target.value === "No" ? "" : currentMember.personalTrainerId,
+                    })}
+                  >
                     <option value="Yes">Yes</option>
                     <option value="No">No</option>
                   </select>
                 </div>
+
                 {currentMember.personalTraining === "Yes" && (
                   <div>
                     <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Select Personal Trainer</label>
-                    <select required className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white" value={currentMember.personalTrainerId} onChange={(e) => setCurrentMember({ ...currentMember, personalTrainerId: e.target.value })}>
+                    <select
+                      required
+                      className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
+                      value={currentMember.personalTrainerId}
+                      onChange={(e) => setCurrentMember({ ...currentMember, personalTrainerId: e.target.value })}
+                    >
                       <option value="" disabled>Select a trainer</option>
                       {staff.map((s: any) => <option key={s._id} value={s._id}>{s.name} - {s.phone}</option>)}
                     </select>
                   </div>
                 )}
-              </div>
 
-              {/* Actions */}
-              <div className="flex gap-4 pt-6 border-t">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-4 py-3 border rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition-colors">Cancel</button>
-                <button type="submit" className="flex-1 bg-[var(--primary)] text-white px-4 py-3 rounded-xl border border-transparent hover:bg-[var(--foreground)] font-bold shadow-md transition-all">Save Member</button>
-              </div>
-            </form>
+                {/* Spacer so last field isn't hidden behind sticky footer */}
+                <div className="h-2" />
+              </form>
+            </div>
+
+            {/* Sticky footer actions */}
+            <div className="flex gap-3 px-5 py-4 border-t bg-white flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="flex-1 px-4 py-3 border rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="member-form"
+                className="flex-1 bg-[var(--primary)] text-white px-4 py-3 rounded-xl font-bold shadow-md hover:bg-[var(--foreground)] transition-all"
+              >
+                Save Member
+              </button>
+            </div>
           </div>
         </div>
       )}
