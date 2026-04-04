@@ -61,7 +61,8 @@ function ImageUploadField({
   photoUrl: string;
   onPhotoUploaded: (url: string) => void;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview]     = useState<string>(photoUrl);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -116,7 +117,8 @@ function ImageUploadField({
   const clearPhoto = () => {
     setPreview("");
     onPhotoUploaded("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (fileInputRef.current)   fileInputRef.current.value   = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
   return (
@@ -159,12 +161,10 @@ function ImageUploadField({
           )}
         </div>
       ) : (
-        // Drop zone
         <div
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
-          className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center gap-3 cursor-pointer hover:border-[var(--primary)] hover:bg-gray-50 transition group"
-          onClick={() => fileInputRef.current?.click()}
+          className="border-2 border-dashed border-gray-300 rounded-xl p-5 flex flex-col items-center gap-3 hover:border-[var(--primary)] hover:bg-gray-50 transition group"
         >
           {uploading ? (
             <Loader2 size={28} className="animate-spin text-[var(--primary)]" />
@@ -175,24 +175,42 @@ function ImageUploadField({
           )}
           <div className="text-center">
             <p className="text-sm font-semibold text-gray-600">
-              {uploading ? "Uploading…" : "Drop image here or click to browse"}
+              {uploading ? "Uploading…" : "Choose how to add a photo"}
             </p>
-            <p className="text-xs text-gray-400 mt-0.5">Also supports camera capture on mobile</p>
           </div>
-          <div className="flex gap-2">
-            <span className="flex items-center gap-1 text-xs bg-gray-100 px-3 py-1 rounded-full font-medium text-gray-600">
-              <Upload size={11} /> File upload
-            </span>
-            <span className="flex items-center gap-1 text-xs bg-gray-100 px-3 py-1 rounded-full font-medium text-gray-600">
-              <Camera size={11} /> Camera (mobile)
-            </span>
+
+          {/* Two explicit buttons — each triggers its own input */}
+          <div className="flex gap-3 mt-1">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs font-semibold bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-full hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] transition shadow-sm"
+            >
+              <Upload size={13} /> File Upload
+            </button>
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="flex items-center gap-1.5 text-xs font-semibold bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-full hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] transition shadow-sm"
+            >
+              <Camera size={13} /> Camera
+            </button>
           </div>
         </div>
       )}
 
-      {/* Hidden input — supports both file and camera */}
+      {/* File picker — NO capture attribute → opens file manager */}
       <input
         ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleInputChange}
+        className="hidden"
+      />
+
+      {/* Camera input — capture attribute → opens camera directly */}
+      <input
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
