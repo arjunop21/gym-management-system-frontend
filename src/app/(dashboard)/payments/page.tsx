@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Plus, CreditCard, CalendarDays, RefreshCw, Edit2, ArrowLeft, Zap } from "lucide-react";
@@ -9,7 +9,7 @@ import Pagination from "@/components/Pagination";
 
 const PAGE_SIZE = 5;
 
-export default function PaymentsPage() {
+function PaymentsContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -527,3 +527,13 @@ export default function PaymentsPage() {
     </div>
   );
 }
+
+// ── Suspense wrapper required for useSearchParams ──────────────────
+export default function PaymentsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading payments...</div>}>
+      <PaymentsContent />
+    </Suspense>
+  );
+}
+

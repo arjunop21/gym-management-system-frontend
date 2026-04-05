@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import {
@@ -256,7 +256,7 @@ function ImageUploadField({
 }
 
 // ── Main Page ──────────────────────────────────────────────────────
-export default function MembersPage() {
+function MembersContent() {
   const searchParams = useSearchParams();
   const [members, setMembers]           = useState<any[]>([]);
   const [plans, setPlans]               = useState<any[]>([]);
@@ -751,3 +751,13 @@ export default function MembersPage() {
     </div>
   );
 }
+
+// ── Suspense wrapper required for useSearchParams ──────────────────
+export default function MembersPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading members...</div>}>
+      <MembersContent />
+    </Suspense>
+  );
+}
+
