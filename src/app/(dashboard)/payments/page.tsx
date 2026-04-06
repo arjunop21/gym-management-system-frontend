@@ -3,9 +3,10 @@
 import { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Plus, CreditCard, CalendarDays, RefreshCw, Edit2, ArrowLeft, Zap, Search } from "lucide-react";
+import { Plus, CreditCard, CalendarDays, RefreshCw, Edit2, ArrowLeft, Zap, Search, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import Pagination from "@/components/Pagination";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 
 const PAGE_SIZE = 5;
 
@@ -22,6 +23,11 @@ function PaymentsContent() {
   const [error, setError] = useState("");
   const [paymentsPage, setPaymentsPage] = useState(1);
   const [fromDashboard, setFromDashboard] = useState(false);
+
+  // Delete state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [paymentIdToDelete, setPaymentIdToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Autocomplete state
   const [memberSearch, setMemberSearch] = useState("");
@@ -177,6 +183,26 @@ function PaymentsContent() {
     } finally { setSaving(false); }
   };
 
+  const handleDeletePayment = async () => {
+    if (!paymentIdToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.delete(`/payments/${paymentIdToDelete}`);
+      setIsDeleteModalOpen(false);
+      setPaymentIdToDelete(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openDeleteModal = (id: string) => {
+    setPaymentIdToDelete(id);
+    setIsDeleteModalOpen(true);
+  };
+
   if (loading) return <div className="p-8">Loading payments...</div>;
 
   const isEdit = Boolean(form.id);
@@ -223,9 +249,14 @@ function PaymentsContent() {
                     </span>
                   </td>
                   <td className="p-4 text-center">
-                    <button onClick={() => openEdit(payment)} className="text-blue-500 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-xs font-bold border border-blue-100">
-                      <Edit2 size={14} className="inline mr-1" /> Edit
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => openEdit(payment)} className="text-blue-500 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-xs font-bold border border-blue-100 flex items-center gap-1">
+                        <Edit2 size={12} /> Edit
+                      </button>
+                      <button onClick={() => openDeleteModal(payment._id)} className="text-red-500 hover:bg-red-50 px-2 py-1.5 rounded-lg border border-red-100">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -234,6 +265,15 @@ function PaymentsContent() {
         </div>
         <Pagination currentPage={paymentsPage} totalPages={paymentsTotalPages} onPageChange={(p) => setPaymentsPage(p)} totalItems={payments.length} itemsPerPage={PAGE_SIZE} />
       </div>
+
+      <DeleteConfirmationModal 
+        isOpen={isDeleteModalOpen} 
+        onClose={() => setIsDeleteModalOpen(false)} 
+        onConfirm={handleDeletePayment} 
+        title="Delete Payment" 
+        message="Are you sure you want to delete this payment record? This action is permanent and will remove the transaction from history."
+        loading={isDeleting}
+      />
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 py-8">

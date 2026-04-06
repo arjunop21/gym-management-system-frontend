@@ -292,7 +292,13 @@ export default function ReportsPage() {
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(v) => v === 0 ? "₹0" : `₹${(v / 1000).toFixed(0)}k`}
+                    allowDecimals={false}
+                    tickFormatter={(v) => {
+                      if (v === 0) return "₹0";
+                      if (v < 1000) return `₹${v}`;
+                      const kVal = v / 1000;
+                      return `₹${Number.isInteger(kVal) ? kVal : kVal.toFixed(1)}k`;
+                    }}
                   />
                   <Tooltip content={<RevenueTooltip />} />
                   <Line
