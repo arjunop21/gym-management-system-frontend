@@ -245,7 +245,8 @@ function MembersContent() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-        <table className="w-full text-left">
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left min-w-[800px]">
           <thead className="bg-gray-50 text-xs font-bold text-gray-400 uppercase">
             <tr>
               <th className="p-4">Name</th>
@@ -300,6 +301,7 @@ function MembersContent() {
             ))}
           </tbody>
         </table>
+        </div>
         <Pagination currentPage={membersPage} totalPages={Math.ceil(filteredMembers.length/PAGE_SIZE)} onPageChange={setMembersPage} totalItems={filteredMembers.length} itemsPerPage={PAGE_SIZE} />
       </div>
 

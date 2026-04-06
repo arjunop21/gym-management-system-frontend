@@ -214,7 +214,7 @@ export default function AttendancePage() {
 
           {/* Table */}
           <div className="overflow-x-auto flex-1">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead className="sticky top-0 bg-gray-50 z-10 border-b">
                 <tr className="text-[var(--muted-foreground)] text-[10px] uppercase font-bold tracking-widest leading-none">
                   <th className="p-4">#</th>

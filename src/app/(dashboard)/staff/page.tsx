@@ -144,7 +144,7 @@ export default function StaffPage() {
 
         <div className="bg-white rounded-2xl shadow-sm border border-[var(--separator)] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="bg-[var(--muted)] border-b text-[var(--muted-foreground)] text-xs uppercase tracking-wider">
                   <th className="p-4 font-bold">#</th>
@@ -221,7 +221,7 @@ export default function StaffPage() {
         {selectedTrainerId && (
           <div className="border rounded-xl overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead className="bg-[var(--muted)] border-b text-[var(--muted-foreground)] text-xs uppercase tracking-wider">
                   <tr>
                     <th className="p-4 font-bold">#</th>

@@ -224,7 +224,7 @@ function PaymentsContent() {
 
       <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
               <tr className="bg-gray-50 border-b text-gray-400 text-xs uppercase tracking-wider">
                 <th className="p-4 font-bold">Member Name</th>
