@@ -1,59 +1,33 @@
 "use client";
 
 import { useEffect, useRef, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import {
   Plus, Edit2, Trash2, Search, Filter, CalendarDays,
-  Camera, Upload, X, ImageIcon, Loader2, User, FileText
+  Camera, Upload, X, ImageIcon, Loader2, User, FileText, Zap
 } from "lucide-react";
 import { format } from "date-fns";
 import Pagination from "@/components/Pagination";
-import Image from "next/image";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 
 const PAGE_SIZE = 5;
 const MAX_FILE_MB = 5;
 const ALLOWED_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
+  "image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"
 ];
 
 // ── Photo Viewer Modal ─────────────────────────────────────────────
 function PhotoModal({ member, onClose }: { member: any; onClose: () => void }) {
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-sm w-full"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <div>
-            <p className="font-bold text-[var(--foreground)]">{member.name}</p>
-            <p className="text-xs text-[var(--muted-foreground)]">{member.phone}</p>
-          </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
-            <X size={18} className="text-gray-500" />
-          </button>
+          <div><p className="font-bold">{member.name}</p></div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100"><X size={18} /></button>
         </div>
         <div className="p-4 flex items-center justify-center bg-gray-50 min-h-[260px]">
-          {member.photo ? (
-            <img
-              src={member.photo}
-              alt={member.name}
-              className="max-h-72 max-w-full rounded-xl object-contain shadow"
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-3 text-gray-300">
-              <User size={72} strokeWidth={1} />
-              <p className="text-sm text-gray-400 font-medium">No photo uploaded</p>
-            </div>
-          )}
+          {member.photo ? <img src={member.photo} alt={member.name} className="max-h-72 object-contain" /> : <User size={72} className="text-gray-200" />}
         </div>
       </div>
     </div>
@@ -61,238 +35,102 @@ function PhotoModal({ member, onClose }: { member: any; onClose: () => void }) {
 }
 
 // ── Image Upload Field ──────────────────────────────────────────────
-function ImageUploadField({
-  photoUrl,
-  onPhotoUploaded,
-}: {
-  photoUrl: string;
-  onPhotoUploaded: (url: string) => void;
-}) {
-  const fileInputRef   = useRef<HTMLInputElement>(null);
+function ImageUploadField({ photoUrl, onPhotoUploaded }: { photoUrl: string; onPhotoUploaded: (url: string) => void; }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const [preview, setPreview]     = useState<string>(photoUrl);
-  const [previewType, setPreviewType] = useState<string>(photoUrl ? "image" : "");
+  const [preview, setPreview] = useState(photoUrl);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
+  const [error, setError] = useState("");
 
   const handleFile = async (file: File) => {
-    setUploadError("");
+    setError("");
+    if (!ALLOWED_TYPES.includes(file.type)) return setError("Invalid file type.");
+    if (file.size > MAX_FILE_MB * 1024 * 1024) return setError("File too large.");
 
-    // Validate type
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      setUploadError("Invalid file type. Use JPEG/JPG, PNG, WEBP, GIF, or PDF.");
-      return;
-    }
-    // Validate size
-    if (file.size > MAX_FILE_MB * 1024 * 1024) {
-      setUploadError(`File too large. Maximum size is ${MAX_FILE_MB} MB.`);
-      return;
-    }
+    const reader = new FileReader();
+    reader.onload = (e) => setPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
 
-    // Local preview
-    if (file.type === "application/pdf") {
-      setPreviewType("pdf");
-      setPreview("");
-    } else {
-      setPreviewType("image");
-      const reader = new FileReader();
-      reader.onload = (e) => setPreview(e.target?.result as string);
-      reader.readAsDataURL(file);
-    }
-
-    // Upload to backend → Firebase
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append("photo", file);
-      const res = await api.post("/upload/member-image", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const res = await api.post("/upload/member-image", formData, { headers: { "Content-Type": "multipart/form-data" } });
       onPhotoUploaded(res.data.url);
     } catch (err: any) {
-      const status = err?.response?.status;
-      if (status === 404) {
-        setUploadError("Upload service not found (404). Please check backend route /upload/member-image.");
-      } else {
-        setUploadError(err?.response?.data?.message || "Upload failed. Try again.");
-      }
-      setPreview(photoUrl); // revert preview
-      setPreviewType(photoUrl ? "image" : "");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFile(file);
-  };
-
-  const clearPhoto = () => {
-    setPreview("");
-    setPreviewType("");
-    onPhotoUploaded("");
-    if (fileInputRef.current)   fileInputRef.current.value   = "";
-    if (cameraInputRef.current) cameraInputRef.current.value = "";
+      setError("Upload failed.");
+      setPreview(photoUrl);
+    } finally { setUploading(false); }
   };
 
   return (
-    <div>
-      <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-2">
-        Member Photo
-        <span className="ml-1 text-xs font-normal text-gray-400">(JPEG/JPG / PNG / WEBP / GIF / PDF · max 5 MB)</span>
-      </label>
-
-      {preview || previewType === "pdf" ? (
-        // Preview card
-        <div className="relative flex flex-col items-center gap-3 p-4 border rounded-xl bg-gray-50">
-          {previewType === "pdf" ? (
-            <div className="w-28 h-28 rounded-xl border bg-white shadow flex flex-col items-center justify-center text-xs font-semibold text-gray-600">
-              <FileText size={24} className="text-red-500 mb-1" />
-              PDF
-            </div>
-          ) : (
-            <img
-              src={preview}
-              alt="Preview"
-              className="w-28 h-28 rounded-xl object-cover shadow border"
-            />
-          )}
-          {uploading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-white/70 rounded-xl">
-              <Loader2 size={24} className="animate-spin text-[var(--primary)]" />
-            </div>
-          )}
-          {!uploading && (
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-1.5 text-xs font-semibold bg-[var(--primary)] text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition"
-              >
-                <Upload size={13} /> Change
-              </button>
-              <button
-                type="button"
-                onClick={clearPhoto}
-                className="flex items-center gap-1.5 text-xs font-semibold border px-3 py-1.5 rounded-lg text-red-500 hover:bg-red-50 transition"
-              >
-                <X size={13} /> Remove
-              </button>
-            </div>
-          )}
+    <div className="space-y-2">
+      <label className="block text-sm font-bold text-gray-500">Member Photo</label>
+      {preview ? (
+        <div className="relative w-28 h-28 border rounded-xl overflow-hidden group">
+          <img src={preview} alt="Profile" className="w-full h-full object-cover" />
+          {uploading && <div className="absolute inset-0 bg-white/60 flex items-center justify-center"><Loader2 className="animate-spin" /></div>}
+          <button type="button" onClick={() => { setPreview(""); onPhotoUploaded(""); }} className="absolute top-1 right-1 bg-white/80 p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition"><X size={14} /></button>
         </div>
       ) : (
-        <div
-          onDrop={handleDrop}
-          onDragOver={(e) => e.preventDefault()}
-          className="border-2 border-dashed border-gray-300 rounded-xl p-5 flex flex-col items-center gap-3 hover:border-[var(--primary)] hover:bg-gray-50 transition group"
-        >
-          {uploading ? (
-            <Loader2 size={28} className="animate-spin text-[var(--primary)]" />
-          ) : (
-            <div className="w-12 h-12 rounded-full bg-gray-100 group-hover:bg-[var(--primary)]/10 flex items-center justify-center transition">
-              <ImageIcon size={22} className="text-gray-400 group-hover:text-[var(--primary)] transition" />
-            </div>
-          )}
-          <div className="text-center">
-            <p className="text-sm font-semibold text-gray-600">
-              {uploading ? "Uploading…" : "Choose how to add a photo"}
-            </p>
-          </div>
-
-          {/* Two explicit buttons — each triggers its own input */}
-          <div className="flex gap-3 mt-1">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 text-xs font-semibold bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-full hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] transition shadow-sm"
-            >
-              <Upload size={13} /> File Upload
-            </button>
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="flex items-center gap-1.5 text-xs font-semibold bg-white border border-gray-200 text-gray-600 px-4 py-2 rounded-full hover:bg-[var(--primary)] hover:text-white hover:border-[var(--primary)] transition shadow-sm"
-            >
-              <Camera size={13} /> Camera
-            </button>
-          </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold border px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-50 transition"><Upload size={14} /> Upload</button>
+          <button type="button" onClick={() => cameraInputRef.current?.click()} className="flex items-center gap-1.5 text-xs font-bold border px-3 py-2 rounded-xl text-gray-600 hover:bg-gray-50 transition"><Camera size={14} /> Camera</button>
         </div>
       )}
-
-      {/* File picker — NO capture attribute → opens file manager */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,application/pdf"
-        onChange={handleInputChange}
-        className="hidden"
-      />
-
-      {/* Camera input — capture attribute → opens camera directly */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleInputChange}
-        className="hidden"
-      />
-
-      {uploadError && (
-        <div className="mt-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-          {uploadError}
-        </div>
-      )}
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} className="hidden" />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} className="hidden" />
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────
+// ── Main Content ───────────────────────────────────────────────────
 function MembersContent() {
   const searchParams = useSearchParams();
-  const [members, setMembers]           = useState<any[]>([]);
-  const [plans, setPlans]               = useState<any[]>([]);
-  const [staff, setStaff]               = useState<any[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [isModalOpen, setIsModalOpen]   = useState(false);
-  const [searchTerm, setSearchTerm]     = useState("");
-  const [filterStatus, setFilterStatus] = useState(() => {
-    // Will be overridden by useEffect, but default to "All"
-    return "All";
-  });
-  const [membersPage, setMembersPage]   = useState(1);
-  const [photoMember, setPhotoMember]   = useState<any | null>(null);
+  const router = useRouter();
 
-  // Apply ?status= URL param on mount
-  useEffect(() => {
-    const status = searchParams.get("status");
-    const valid = ["All", "Active", "Expired", "Temporary Discontinue"];
-    if (status && valid.includes(status)) {
-      setFilterStatus(status);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [members, setMembers] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [membersPage, setMembersPage] = useState(1);
+  const [photoMember, setPhotoMember] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [memberIdToDelete, setMemberIdToDelete] = useState<string | null>(null);
 
   const today = format(new Date(), "yyyy-MM-dd");
-
   const blankMember = {
     id: "", name: "", phone: "", address: "",
     membershipPlan: "", joinDate: today,
     status: "Active", personalTraining: "No", personalTrainerId: "",
     photo: "",
   };
-
   const [currentMember, setCurrentMember] = useState(blankMember);
 
-  // Expiry preview
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (status) setFilterStatus(status);
+    fetchData();
+  }, [searchParams]);
+
+  const fetchData = async () => {
+    try {
+      const [membersRes, plansRes, staffRes] = await Promise.all([
+        api.get("/members"), api.get("/plans"), api.get("/staff")
+      ]);
+      setMembers(membersRes.data);
+      setPlans(plansRes.data);
+      setStaff(staffRes.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
   const getExpiryPreview = () => {
     if (!currentMember.membershipPlan || !currentMember.joinDate) return null;
     const plan = plans.find((p: any) => p._id === currentMember.membershipPlan);
@@ -303,448 +141,239 @@ function MembersContent() {
   };
   const expiryPreview = getExpiryPreview();
 
-  const fetchData = async () => {
+  const handleSave = async (e: any) => {
+    e.preventDefault();
+    setError("");
+    setSaving(true);
     try {
-      const [membersRes, plansRes, staffRes] = await Promise.all([
-        api.get("/members"),
-        api.get("/plans"),
-        api.get("/staff"),
-      ]);
-      setMembers(membersRes.data);
-      setPlans(plansRes.data);
-      setStaff(staffRes.data);
+      const payload: any = {
+        name: currentMember.name,
+        phone: currentMember.phone,
+        address: currentMember.address,
+        photo: currentMember.photo,
+        membershipPlan: currentMember.membershipPlan,
+        joinDate: currentMember.joinDate,
+        status: currentMember.status,
+        personalTraining: currentMember.personalTraining === "Yes",
+        personalTrainerId: currentMember.personalTrainerId || null,
+      };
+
+      if (currentMember.id) {
+        await api.put(`/members/${currentMember.id}`, payload);
+        setIsModalOpen(false);
+        fetchData();
+      } else {
+        const res = await api.post("/members", payload);
+        setIsModalOpen(false);
+        fetchData();
+        router.push(`/payments?memberId=${res.data._id}&fromDashboard=true`);
+      }
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to save member.");
+    } finally { setSaving(false); }
+  };
+
+  const openEdit = (m: any) => {
+    setCurrentMember({
+      id: m._id, name: m.name, phone: m.phone, address: m.address,
+      membershipPlan: m.membershipPlan?._id || m.membershipPlan || "",
+      joinDate: m.joinDate ? format(new Date(m.joinDate), "yyyy-MM-dd") : today,
+      status: m.status, personalTraining: m.personalTraining ? "Yes" : "No",
+      personalTrainerId: m.personalTrainerId?._id || m.personalTrainerId || "",
+      photo: m.photo || ""
+    });
+    setError("");
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!memberIdToDelete) return;
+    try {
+      setSaving(true);
+      await api.delete(`/members/${memberIdToDelete}`);
+      setIsDeleteModalOpen(false);
+      setMemberIdToDelete(null);
+      fetchData();
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
-
-  const handleSave = async (e: any) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        ...currentMember,
-        personalTraining: currentMember.personalTraining === "Yes",
-      };
-      if (currentMember.id) {
-        await api.put(`/members/${currentMember.id}`, payload);
-      } else {
-        await api.post("/members", payload);
-      }
-      setIsModalOpen(false);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
+  const openDeleteModal = (id: string) => {
+    setMemberIdToDelete(id);
+    setIsDeleteModalOpen(true);
   };
 
-  const openAdd = () => {
-    setCurrentMember({ ...blankMember, membershipPlan: plans[0]?._id || "" });
-    setIsModalOpen(true);
-  };
-
-  const openEdit = (member: any) => {
-    setCurrentMember({
-      id: member._id,
-      name: member.name,
-      phone: member.phone,
-      address: member.address,
-      membershipPlan: member.membershipPlan?._id || "",
-      joinDate: member.joinDate ? format(new Date(member.joinDate), "yyyy-MM-dd") : today,
-      status: member.status,
-      personalTraining: member.personalTraining ? "Yes" : "No",
-      personalTrainerId: member.personalTrainerId?._id || member.personalTrainerId || "",
-      photo: member.photo || "",
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure?")) {
-      await api.delete(`/members/${id}`);
-      fetchData();
-    }
-  };
-
-  // Filtering + pagination
-  const filteredMembers = members.map((member: any) => {
-    let dynamicStatus = member.status;
-    if (member.status === "Active" && member.expiryDate) {
-      const todayDate = new Date();
-      todayDate.setHours(0, 0, 0, 0);
-      if (new Date(member.expiryDate) < todayDate) dynamicStatus = "Expired";
-    }
-    return { ...member, dynamicStatus };
-  }).filter((member: any) => {
-    const matchesSearch =
-      member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.phone.includes(searchTerm);
-    const matchesStatus = filterStatus === "All" || member.dynamicStatus === filterStatus;
-    return matchesSearch && matchesStatus;
+  const filteredMembers = members.map(m => {
+    let dStatus = m.status;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    if (m.status === "Active" && m.expiryDate && new Date(m.expiryDate) < now) dStatus = "Expired";
+    return { ...m, dStatus };
+  }).filter(m => {
+    const s = m.name.toLowerCase().includes(searchTerm.toLowerCase()) || m.phone.includes(searchTerm);
+    const st = filterStatus === "All" || m.dStatus === filterStatus;
+    return s && st;
   });
 
-  const handleSearchChange  = (val: string) => { setSearchTerm(val);   setMembersPage(1); };
-  const handleStatusChange  = (val: string) => { setFilterStatus(val); setMembersPage(1); };
+  const pMembers = filteredMembers.slice((membersPage - 1) * PAGE_SIZE, membersPage * PAGE_SIZE);
 
-  const membersTotalPages = Math.ceil(filteredMembers.length / PAGE_SIZE);
-  const paginatedMembers  = filteredMembers.slice(
-    (membersPage - 1) * PAGE_SIZE,
-    membersPage * PAGE_SIZE
-  );
-
-  if (loading) return <div className="p-8">Loading members...</div>;
+  if (loading) return <div className="p-8">Loading...</div>;
 
   return (
     <div className="space-y-6">
-
-      {/* Photo Viewer Modal */}
-      {photoMember && (
-        <PhotoModal member={photoMember} onClose={() => setPhotoMember(null)} />
-      )}
-
-      {/* Header */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-[var(--separator)] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">Members Directory</h1>
-          <p className="text-[var(--muted-foreground)] text-sm">{filteredMembers.length} Total Members</p>
-        </div>
-        <button
-          onClick={openAdd}
-          className="flex flex-shrink-0 items-center gap-2 bg-[var(--primary)] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[var(--foreground)] transition-all shadow-md w-full md:w-auto justify-center"
-        >
-          <Plus size={16} /> Register Member
-        </button>
+      {photoMember && <PhotoModal member={photoMember} onClose={() => setPhotoMember(null)} />}
+      
+      <div className="bg-white p-6 rounded-2xl shadow-sm border flex justify-between items-center">
+        <div><h1 className="text-2xl font-bold">Members Directory</h1></div>
+        <button onClick={() => { setCurrentMember({ ...blankMember, membershipPlan: plans[0]?._id }); setError(""); setIsModalOpen(true); }} className="bg-[var(--primary)] text-white px-4 py-2.5 rounded-xl font-medium">+ Register Member</button>
       </div>
 
-      {/* Search + Filter */}
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-[var(--separator)] flex flex-col sm:flex-row gap-4">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border flex gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            type="text"
-            placeholder="Search by name or phone..."
-            className="w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all"
-            value={searchTerm}
-            onChange={(e) => handleSearchChange(e.target.value)}
-          />
+          <input type="text" placeholder="Search..." className="w-full pl-10 pr-4 py-2 border rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
-        <div className="relative w-full sm:w-48">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <select
-            className="w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none appearance-none bg-white transition-all cursor-pointer"
-            value={filterStatus}
-            onChange={(e) => handleStatusChange(e.target.value)}
-          >
-            <option value="All">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Expired">Expired</option>
-            <option value="Temporary Discontinue">Temporary Discontinue</option>
-          </select>
-        </div>
+        <select className="border px-4 py-2 rounded-xl bg-white" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <option value="All">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Expired">Expired</option>
+          <option value="Temporary Discontinue">Temporary Discontinue</option>
+        </select>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-[var(--separator)] overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[var(--muted)] border-b text-[var(--muted-foreground)] text-xs uppercase tracking-wider">
-                <th className="p-4 font-bold">Name</th>
-                <th className="p-4 font-bold">Contact</th>
-                <th className="p-4 font-bold">Plan</th>
-                <th className="p-4 font-bold">Trainer</th>
-                <th className="p-4 font-bold text-center">Status</th>
-                <th className="p-4 font-bold text-center">Join Date</th>
-                <th className="p-4 font-bold text-center">Expiry Date</th>
-                <th className="p-4 font-bold text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedMembers.map((member: any) => (
-                <tr
-                  key={member._id}
-                  className={`border-b last:border-0 transition-colors ${member.dynamicStatus === "Expired" ? "bg-red-50 hover:bg-red-100" : "hover:bg-gray-50"}`}
-                >
-                  {/* Name + avatar — click to view photo */}
-                  <td className="p-4">
-                    <button
-                      onClick={() => setPhotoMember(member)}
-                      className="flex items-center gap-2.5 group text-left"
-                      title="Click to view photo"
-                    >
-                      {/* Avatar */}
-                      <div className="w-9 h-9 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0 flex items-center justify-center">
-                        {member.photo ? (
-                          <img
-                            src={member.photo}
-                            alt={member.name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <User size={18} className="text-gray-400" />
-                        )}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-[var(--foreground)] group-hover:text-[var(--primary)] transition-colors underline-offset-2 group-hover:underline">
-                          {member.name}
-                        </div>
-                        <div className="text-xs text-[var(--muted-foreground)]">
-                          ID: {member._id.substr(member._id.length - 6).toUpperCase()}
-                        </div>
-                      </div>
-                    </button>
-                  </td>
-
-                  <td className="p-4">
-                    <div className="text-sm font-medium">{member.phone}</div>
-                    <div className="text-xs text-[var(--muted-foreground)] truncate max-w-[150px]">{member.address}</div>
-                  </td>
-                  <td className="p-4">
-                    <div className="text-sm font-semibold">{member.membershipPlan?.name || "N/A"}</div>
-                    <div className="text-xs text-[var(--primary)] font-medium">₹{member.membershipPlan?.price}</div>
-                  </td>
-                  <td className="p-4">
-                    {member.personalTraining ? (
-                      <div className="text-sm font-medium text-blue-600">
-                        {staff.find((s) => s._id === (member.personalTrainerId?._id || member.personalTrainerId))?.name || "Unassigned"}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-400">No PT</div>
-                    )}
-                  </td>
-                  <td className="p-4 text-center">
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-                      member.dynamicStatus === "Active"
-                        ? "bg-green-100 text-green-700"
-                        : member.dynamicStatus === "Temporary Discontinue"
-                        ? "bg-gray-100 text-gray-600"
-                        : "bg-red-100 text-red-700"
-                    }`}>
-                      {member.dynamicStatus}
-                    </span>
-                  </td>
-                  <td className="p-4 text-center text-sm font-medium text-[var(--muted-foreground)]">
-                    <div className="flex items-center justify-center gap-1">
-                      <CalendarDays size={13} className="text-blue-400" />
-                      {member.joinDate ? format(new Date(member.joinDate), "MMM dd, yyyy") : "N/A"}
+      <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <table className="w-full text-left">
+          <thead className="bg-gray-50 text-xs font-bold text-gray-400 uppercase">
+            <tr>
+              <th className="p-4">Name</th>
+              <th className="p-4">Plan</th>
+              <th className="p-4">Trainer</th>
+              <th className="p-4 text-center">Status</th>
+              <th className="p-4 text-center">Join Date</th>
+              <th className="p-4 text-center">Expiry</th>
+              <th className="p-4 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pMembers.map((m: any) => (
+              <tr key={m._id} className="border-b last:border-0 hover:bg-gray-50">
+                <td className="p-4">
+                  <button onClick={() => setPhotoMember(m)} className="flex items-center gap-2 text-left">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center">
+                      {m.photo ? <img src={m.photo} alt={m.name} className="w-full h-full object-cover" /> : <User size={16} className="text-gray-400" />}
                     </div>
-                  </td>
-                  <td className="p-4 text-center text-sm font-medium text-[var(--muted-foreground)]">
-                    <div className={`flex items-center justify-center gap-1 ${member.dynamicStatus === "Expired" ? "text-red-500 font-semibold" : ""}`}>
-                      <CalendarDays size={13} className={member.dynamicStatus === "Expired" ? "text-red-400" : "text-orange-400"} />
-                      {member.expiryDate ? format(new Date(member.expiryDate), "MMM dd, yyyy") : "N/A"}
+                    <div>
+                      <div className="font-bold text-sm text-gray-700">{m.name}</div>
+                      <div className="text-[10px] text-gray-400 font-mono">ID: {m._id.slice(-6).toUpperCase()}</div>
                     </div>
-                  </td>
-                  <td className="p-4 text-center">
-                    <div className="flex justify-center gap-2">
-                      <button onClick={() => openEdit(member)} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg transition-colors"><Edit2 size={18} /></button>
-                      <button onClick={() => handleDelete(member._id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                  </button>
+                </td>
+                <td className="p-4">
+                  <div className="text-xs font-bold text-gray-700">{m.membershipPlan?.name || "N/A"}</div>
+                  <div className="text-[10px] text-[var(--primary)] font-bold">₹{m.membershipPlan?.price}</div>
+                </td>
+                <td className="p-4">
+                  {m.personalTraining ? (
+                    <div className="text-xs font-semibold text-blue-600 flex items-center gap-1">
+                      <Zap size={10} fill="currentColor" />
+                      {staff.find((s: any) => s._id === (m.personalTrainerId?._id || m.personalTrainerId))?.name || "Unassigned"}
                     </div>
-                  </td>
-                </tr>
-              ))}
-              {paginatedMembers.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-[var(--muted-foreground)] font-medium bg-gray-50">
-                    No members found matching your criteria.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <Pagination
-          currentPage={membersPage}
-          totalPages={membersTotalPages}
-          onPageChange={(p) => setMembersPage(p)}
-          totalItems={filteredMembers.length}
-          itemsPerPage={PAGE_SIZE}
-        />
-      </div>
-
-      {/* Register / Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-20 sm:pt-10">
-          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl flex flex-col mb-8">
-
-            {/* Sticky header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0">
-              <h2 className="text-lg font-bold text-[var(--foreground)]">
-                {currentMember.id ? "Edit Member" : "Register Member"}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="p-2 rounded-xl hover:bg-gray-100 transition text-gray-400"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Form body */}
-            <div className="px-5 py-5">
-              <form onSubmit={handleSave} className="space-y-5" id="member-form">
-
-                {/* Photo Upload */}
-                <ImageUploadField
-                  photoUrl={currentMember.photo}
-                  onPhotoUploaded={(url) => setCurrentMember({ ...currentMember, photo: url })}
-                />
-
-                {/* ── Basic Info ── */}
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-1">Basic Info</p>
-
-                <div>
-                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Full Name</label>
-                  <input
-                    required type="text"
-                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm text-base"
-                    value={currentMember.name}
-                    onChange={(e) => setCurrentMember({ ...currentMember, name: e.target.value })}
-                    placeholder="John Doe"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Phone Number</label>
-                  <input
-                    required type="tel"
-                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm text-base"
-                    value={currentMember.phone}
-                    onChange={(e) => setCurrentMember({ ...currentMember, phone: e.target.value })}
-                    placeholder="+91 98765 43210"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Address</label>
-                  <textarea
-                    rows={2}
-                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm resize-none text-base"
-                    value={currentMember.address}
-                    onChange={(e) => setCurrentMember({ ...currentMember, address: e.target.value })}
-                    placeholder="123 Main St..."
-                  />
-                </div>
-
-                {/* ── Membership ── */}
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-1">Membership</p>
-
-                <div>
-                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Membership Plan</label>
-                  <select
-                    required
-                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
-                    value={currentMember.membershipPlan}
-                    onChange={(e) => setCurrentMember({ ...currentMember, membershipPlan: e.target.value })}
-                  >
-                    <option value="" disabled>Select a plan</option>
-                    {plans.map((p: any) => <option key={p._id} value={p._id}>{p.name} - ₹{p.price} ({p.duration} mo)</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Status</label>
-                  <select
-                    required
-                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
-                    value={currentMember.status}
-                    onChange={(e) => setCurrentMember({ ...currentMember, status: e.target.value })}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Expired">Expired</option>
-                    <option value="Temporary Discontinue">Temporary Discontinue</option>
-                  </select>
-                </div>
-
-                {/* ── Dates ── */}
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-1">Dates</p>
-
-                <div>
-                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Join Date</label>
-                  <input
-                    required type="date"
-                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
-                    value={currentMember.joinDate}
-                    onChange={(e) => setCurrentMember({ ...currentMember, joinDate: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">
-                    Expiry Date
-                    <span className="ml-1.5 text-xs font-normal text-blue-500">(auto-calculated)</span>
-                  </label>
-                  <div className={`w-full border p-3 rounded-xl shadow-sm text-sm font-semibold flex items-center gap-2 ${
-                    expiryPreview
-                      ? "bg-blue-50 border-blue-200 text-blue-700"
-                      : "bg-gray-50 text-gray-400"
-                  }`}>
-                    <CalendarDays size={16} className="flex-shrink-0" />
-                    {expiryPreview ? format(expiryPreview, "MMM dd, yyyy") : "Select plan & join date"}
+                  ) : <div className="text-xs text-gray-300">No PT</div>}
+                </td>
+                <td className="p-4 text-center">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${m.dStatus === "Active" ? "bg-green-100 text-green-700" : m.dStatus === "Temporary Discontinue" ? "bg-gray-100 text-gray-600" : "bg-red-100 text-red-700"}`}>
+                    {m.dStatus}
+                  </span>
+                </td>
+                <td className="p-4 text-center text-xs text-gray-500 font-medium">{m.joinDate ? format(new Date(m.joinDate), "dd MMM yyyy") : "-"}</td>
+                <td className="p-4 text-center text-xs text-gray-500 font-medium">{m.expiryDate ? format(new Date(m.expiryDate), "dd MMM yyyy") : "-"}</td>
+                <td className="p-4 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <button onClick={() => openEdit(m)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                    <button onClick={() => openDeleteModal(m._id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
                   </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <Pagination currentPage={membersPage} totalPages={Math.ceil(filteredMembers.length/PAGE_SIZE)} onPageChange={setMembersPage} totalItems={filteredMembers.length} itemsPerPage={PAGE_SIZE} />
+      </div>
+
+      <DeleteConfirmationModal 
+        isOpen={isDeleteModalOpen} 
+        onClose={() => setIsDeleteModalOpen(false)} 
+        onConfirm={handleDelete} 
+        title="Delete Member" 
+        message="Are you sure you want to delete this member? This action cannot be undone and all their records will be removed."
+        loading={saving}
+      />
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-start justify-center p-4 pt-10">
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-xl p-6 overflow-y-auto max-h-[85vh]">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">{currentMember.id ? "Edit Member" : "Register Member"}</h2>
+              <button onClick={() => setIsModalOpen(false)}><X /></button>
+            </div>
+            
+            {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-bold">{error}</div>}
+
+            <form onSubmit={handleSave} className="space-y-4">
+              <ImageUploadField photoUrl={currentMember.photo} onPhotoUploaded={(url) => setCurrentMember({ ...currentMember, photo: url })} />
+              
+              <div className="grid grid-cols-1 gap-4">
+                <div className="bg-gray-50/50 p-4 rounded-2xl border space-y-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Base Information</p>
+                  <div><label className="text-xs font-bold text-gray-500 block mb-1">Full Name</label><input required className="w-full border p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none" value={currentMember.name} onChange={e => setCurrentMember({ ...currentMember, name: e.target.value })} placeholder="John Doe" /></div>
+                  <div><label className="text-xs font-bold text-gray-500 block mb-1">Phone Number</label><input required className="w-full border p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-[var(--primary)] outline-none" value={currentMember.phone} onChange={e => setCurrentMember({ ...currentMember, phone: e.target.value })} placeholder="+91 99999 99999" /></div>
+                  <div><label className="text-xs font-bold text-gray-500 block mb-1">Address</label><textarea required rows={2} className="w-full border p-2.5 rounded-xl text-sm resize-none focus:ring-2 focus:ring-[var(--primary)] outline-none" value={currentMember.address} onChange={e => setCurrentMember({ ...currentMember, address: e.target.value })} placeholder="Street address..." /></div>
                 </div>
 
-                {/* ── Personal Training ── */}
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest pt-1">Personal Training</p>
-
-                <div>
-                  <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Personal Training</label>
-                  <select
-                    className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
-                    value={currentMember.personalTraining}
-                    onChange={(e) => setCurrentMember({
-                      ...currentMember,
-                      personalTraining: e.target.value,
-                      personalTrainerId: e.target.value === "No" ? "" : currentMember.personalTrainerId,
-                    })}
-                  >
-                    <option value="Yes">Yes</option>
-                    <option value="No">No</option>
-                  </select>
-                </div>
-
-                {currentMember.personalTraining === "Yes" && (
-                  <div>
-                    <label className="block text-sm font-bold text-[var(--muted-foreground)] mb-1.5">Select Personal Trainer</label>
-                    <select
-                      required
-                      className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none transition-all shadow-sm bg-white text-base"
-                      value={currentMember.personalTrainerId}
-                      onChange={(e) => setCurrentMember({ ...currentMember, personalTrainerId: e.target.value })}
-                    >
-                      <option value="" disabled>Select a trainer</option>
-                      {staff.map((s: any) => <option key={s._id} value={s._id}>{s.name} - {s.phone}</option>)}
+                <div className="bg-gray-50/50 p-4 rounded-2xl border space-y-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Membership & Dates</p>
+                  <div><label className="text-xs font-bold text-gray-500 block mb-1">Select Plan</label>
+                    <select required className="w-full border p-2.5 rounded-xl text-sm bg-white" value={currentMember.membershipPlan} onChange={e => setCurrentMember({ ...currentMember, membershipPlan: e.target.value })}>
+                      <option value="" disabled>Choose a plan</option>
+                      {plans.map((p: any) => <option key={p._id} value={p._id}>{p.name} — ₹{p.price}</option>)}
                     </select>
                   </div>
-                )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-xs font-bold text-gray-500 block mb-1">Join Date</label><input required type="date" className="w-full border p-2.5 rounded-xl text-sm" value={currentMember.joinDate} onChange={e => setCurrentMember({ ...currentMember, joinDate: e.target.value })} /></div>
+                    <div><label className="text-xs font-bold text-gray-500 block mb-1">Expiry (Auto)</label><div className="bg-blue-50 border border-blue-100 p-2.5 rounded-xl text-xs font-bold text-blue-700 flex items-center gap-1"><CalendarDays size={12} /> {expiryPreview ? format(expiryPreview, "dd MMM yyyy") : "Select plan"}</div></div>
+                  </div>
+                </div>
 
-                {/* Spacer so last field isn't hidden behind sticky footer */}
-                <div className="h-2" />
-              </form>
-            </div>
+                <div className="bg-gray-50/50 p-4 rounded-2xl border space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Personal Training</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-500">Need PT?</span>
+                      <select className="border text-xs font-bold p-1 rounded-lg bg-white" value={currentMember.personalTraining} onChange={e => setCurrentMember({ ...currentMember, personalTraining: e.target.value, personalTrainerId: e.target.value === "No" ? "" : currentMember.personalTrainerId })}>
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                      </select>
+                    </div>
+                  </div>
+                  {currentMember.personalTraining === "Yes" && (
+                    <div><label className="text-xs font-bold text-gray-500 block mb-1">Assign Personal Trainer</label>
+                      <select required className="w-full border p-2.5 rounded-xl text-sm bg-white" value={currentMember.personalTrainerId} onChange={e => setCurrentMember({ ...currentMember, personalTrainerId: e.target.value })}>
+                        <option value="" disabled>Select a staff member</option>
+                        {staff.map((s: any) => <option key={s._id} value={s._id}>{s.name} — {s.phone}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-            {/* Sticky footer actions */}
-            <div className="flex gap-3 px-5 py-4 border-t bg-white flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="flex-1 px-4 py-3 border rounded-xl hover:bg-gray-50 font-bold text-gray-600 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                form="member-form"
-                className="flex-1 bg-[var(--primary)] text-white px-4 py-3 rounded-xl font-bold shadow-md hover:bg-[var(--foreground)] transition-all"
-              >
-                Save Member
-              </button>
-            </div>
+              <div className="flex gap-4 pt-4">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 border rounded-xl font-bold text-gray-400 hover:bg-gray-50 transition">Cancel</button>
+                <button type="submit" disabled={saving} className="flex-1 bg-[var(--primary)] text-white py-3 rounded-xl font-bold shadow-md hover:opacity-90 disabled:opacity-50 transition">{saving ? "Saving..." : "Save Member"}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -752,12 +381,6 @@ function MembersContent() {
   );
 }
 
-// ── Suspense wrapper required for useSearchParams ──────────────────
 export default function MembersPage() {
-  return (
-    <Suspense fallback={<div className="p-8 text-center text-gray-400">Loading members...</div>}>
-      <MembersContent />
-    </Suspense>
-  );
+  return <Suspense fallback={<div>Loading...</div>}><MembersContent /></Suspense>;
 }
-

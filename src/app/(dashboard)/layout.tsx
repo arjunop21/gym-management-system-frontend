@@ -57,6 +57,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               alt="Cochin Fitness Logo"
               width={80}
               height={40}
+              priority
               style={{ width: "auto", height: "50px", objectFit: "contain" }}
               className="rounded drop-shadow-md"
             />

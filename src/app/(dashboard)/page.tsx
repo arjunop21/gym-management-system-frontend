@@ -6,7 +6,7 @@ import api from "@/lib/api";
 import {
   Users, CreditCard, Activity, Ban, MessageSquare,
   Filter, CalendarDays, ChevronRight, SkipForward,
-  X, Send, Loader2, CheckCircle2, PhoneCall
+  X, Send, Loader2, CheckCircle2, PhoneCall, User, Zap
 } from "lucide-react";
 import Pagination from "@/components/Pagination";
 import { format } from "date-fns";
@@ -21,10 +21,8 @@ const DAY_FILTER_OPTIONS = [
   { label: "6–7 days", value: "6-7", color: "bg-yellow-100 text-yellow-700 border-yellow-200" },
 ];
 
-// ─── Queue State Types ─────────────────────────────────────────────
 type QueueState = "idle" | "running" | "done";
 
-// ─── Utilities ────────────────────────────────────────────────────
 function applyDayFilter(members: any[], filter: string): any[] {
   return members.filter((m) => {
     if (m.status === "Temporary Discontinue") return false;
@@ -39,11 +37,8 @@ function applyDayFilter(members: any[], filter: string): any[] {
 }
 
 function buildWhatsAppUrl(member: any): string {
-  const phone = member.phone.replace(/\D/g, "");
-  const dayText =
-    member.daysRemaining === 0
-      ? "today"
-      : `in ${member.daysRemaining} ${member.daysRemaining === 1 ? "day" : "days"}`;
+  const phone = (member.phone || "").replace(/\D/g, "");
+  const dayText = member.daysRemaining === 0 ? "today" : `in ${member.daysRemaining} days`;
   const message = `Hello ${member.name}, your gym membership will expire ${dayText}. Please renew your membership to continue enjoying our services. Thank you! 🏋️`;
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
@@ -61,169 +56,76 @@ function daysBadgeLabel(d: number) {
 }
 
 // ─── Queue Modal ──────────────────────────────────────────────────
-function QueueModal({
-  queue,
-  currentIndex,
-  filterLabel,
-  onOpenWhatsApp,
-  onNext,
-  onSkip,
-  onCancel,
-  queueState,
-}: {
-  queue: any[];
-  currentIndex: number;
-  filterLabel: string;
-  onOpenWhatsApp: () => void;
-  onNext: () => void;
-  onSkip: () => void;
-  onCancel: () => void;
-  queueState: QueueState;
-}) {
+function QueueModal({ queue, currentIndex, filterLabel, onOpenWhatsApp, onNext, onSkip, onCancel, queueState }: any) {
   const member = queue[currentIndex];
   const isDone = queueState === "done" || currentIndex >= queue.length;
   const progress = Math.round(((currentIndex) / queue.length) * 100);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-
-        {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-500 text-white flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageSquare size={20} />
-            <span className="font-bold text-lg">WhatsApp Queue</span>
-          </div>
-          <button onClick={onCancel} className="p-1 rounded-lg hover:bg-white/20 transition">
-            <X size={18} />
-          </button>
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 bg-green-600 text-white flex items-center justify-between">
+          <div className="flex items-center gap-2 font-bold"><MessageSquare size={20} /> WhatsApp Queue</div>
+          <button onClick={onCancel} className="p-1 hover:bg-white/20 rounded-lg"><X size={18} /></button>
         </div>
-
-        {/* Filter Badge */}
-        <div className="px-6 pt-4 pb-0">
-          <div className="flex items-center gap-2 text-xs">
-            <Filter size={12} className="text-gray-400" />
-            <span className="text-gray-500 font-medium">Active Filter:</span>
-            <span className="bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full border border-green-200">
-              {filterLabel}
-            </span>
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="px-6 pt-3">
-          <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5 font-medium">
-            <span>
-              {isDone
-                ? `✅ All ${queue.length} reminders sent!`
-                : `Sending ${currentIndex + 1} of ${queue.length} reminders`}
-            </span>
-            <span>{isDone ? 100 : progress}%</span>
-          </div>
-          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-            <div
-              className="h-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-500"
-              style={{ width: `${isDone ? 100 : progress}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5">
+        <div className="p-6">
           {isDone ? (
-            // Done state
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-                <CheckCircle2 size={36} className="text-green-600" />
-              </div>
-              <p className="text-lg font-bold text-gray-800">All Done!</p>
-              <p className="text-sm text-gray-500">
-                Successfully queued{" "}
-                <span className="font-bold text-green-600">{queue.length}</span>{" "}
-                WhatsApp reminders.
-              </p>
-              <button
-                onClick={onCancel}
-                className="mt-2 px-6 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition shadow-sm"
-              >
-                Close
-              </button>
+            <div className="text-center py-6">
+              <CheckCircle2 size={48} className="text-green-600 mx-auto mb-4" />
+              <p className="text-lg font-bold">All Reminders Sent!</p>
+              <button onClick={onCancel} className="mt-4 px-6 py-2 bg-green-600 text-white rounded-xl font-bold">Close</button>
             </div>
           ) : (
-            // Member card
             <div className="space-y-4">
-              {/* Member info card */}
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-0.5">Member</p>
-                    <p className="text-lg font-bold text-gray-800">{member?.name}</p>
-                  </div>
-                  <span className={`mt-1 px-3 py-1 rounded-full text-xs font-bold ${daysBadgeClass(member?.daysRemaining)}`}>
-                    {daysBadgeLabel(member?.daysRemaining)}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <PhoneCall size={14} className="text-green-500 flex-shrink-0" />
-                    <span className="font-medium">{member?.phone || "No phone"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CalendarDays size={14} className="text-orange-400 flex-shrink-0" />
-                    <span className="font-medium">
-                      {member?.expiryDate
-                        ? format(new Date(member.expiryDate), "MMM dd, yyyy")
-                        : "N/A"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Message preview */}
-              <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-xs text-green-800 font-medium leading-relaxed">
-                <p className="text-green-500 text-[10px] font-bold uppercase tracking-wide mb-1">📱 WhatsApp Message Preview</p>
-                Hello <strong>{member?.name}</strong>, your gym membership will expire{" "}
-                {member?.daysRemaining === 0 ? "today" : `in ${member?.daysRemaining} ${member?.daysRemaining === 1 ? "day" : "days"}`}.
-                Please renew your membership to continue enjoying our services. Thank you! 🏋️
-              </div>
-
-              {/* Queue up/ahead hints */}
-              {currentIndex + 1 < queue.length && (
-                <p className="text-xs text-gray-400 text-center">
-                  Up next: <span className="font-semibold text-gray-600">{queue[currentIndex + 1]?.name}</span>
-                </p>
-              )}
+               {/* Progress */}
+               <div className="flex justify-between text-xs font-bold text-gray-400 mb-1">
+                 <span>Progress: {currentIndex + 1} / {queue.length}</span>
+                 <span>{progress}%</span>
+               </div>
+               <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                 <div className="h-full bg-green-500 transition-all" style={{ width: `${progress}%` }} />
+               </div>
+               {/* Member Card */}
+               <div className="p-4 bg-gray-50 rounded-xl border">
+                 <p className="text-lg font-bold">{member.name}</p>
+                 <p className="text-sm text-gray-500">{member.phone}</p>
+               </div>
+               <div className="grid grid-cols-3 gap-2 pt-4">
+                 <button onClick={onSkip} className="border py-2.5 rounded-xl text-sm font-bold text-gray-500">Skip</button>
+                 <button onClick={onOpenWhatsApp} className="bg-green-600 text-white py-2.5 rounded-xl text-sm font-bold">Open WA</button>
+                 <button onClick={onNext} className="bg-blue-600 text-white py-2.5 rounded-xl text-sm font-bold">Next</button>
+               </div>
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* Actions */}
-        {!isDone && (
-          <div className="px-6 pb-6 grid grid-cols-3 gap-2">
-            <button
-              onClick={onSkip}
-              className="flex items-center justify-center gap-1.5 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-50 transition"
-            >
-              <SkipForward size={15} />
-              Skip
-            </button>
-            <button
-              onClick={onOpenWhatsApp}
-              disabled={!member?.phone}
-              className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed col-span-1"
-            >
-              <Send size={14} />
-              Open WA
-            </button>
-            <button
-              onClick={onNext}
-              className="flex items-center justify-center gap-1.5 px-3 py-2.5 bg-[var(--primary)] text-white rounded-xl text-sm font-bold hover:bg-[var(--foreground)] transition shadow-sm"
-            >
-              Next
-              <ChevronRight size={15} />
-            </button>
+// ─── Photo Viewer Modal ─────────────────────────────────────────────
+function PhotoModal({ member, onClose }: { member: any; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-sm w-full animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><User size={16} /></div>
+            <div>
+              <p className="font-bold text-[var(--foreground)] text-sm">{member.name}</p>
+              <p className="text-[10px] text-[var(--muted-foreground)] font-medium uppercase tracking-wider">{member.phone}</p>
+            </div>
           </div>
-        )}
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 transition text-gray-400"><X size={18} /></button>
+        </div>
+        <div className="p-4 flex items-center justify-center bg-gray-50 min-h-[300px]">
+          {member.photo ? <img src={member.photo} alt={member.name} className="max-h-80 max-w-full rounded-xl object-contain shadow-lg" /> 
+          : <div className="text-center text-gray-300 py-12"><User size={80} strokeWidth={1} /><p className="text-sm font-medium">No photo uploaded</p></div>}
+        </div>
+        <div className="px-5 py-4 bg-gray-50 border-t flex justify-between items-center text-[10px] font-bold text-gray-400 uppercase">
+          <span>Membership Photo</span>
+          <span className={`px-2 py-0.5 rounded-full ${daysBadgeClass(member.daysRemaining)}`}>{daysBadgeLabel(member.daysRemaining)} left</span>
+        </div>
       </div>
     </div>
   );
@@ -232,15 +134,13 @@ function QueueModal({
 // ─── Main Dashboard ────────────────────────────────────────────────
 export default function Dashboard() {
   const router = useRouter();
-  const [stats, setStats] = useState({
-    totalMembers: 0, activeMembers: 0, expiredMembers: 0, monthlyRevenue: 0,
-  });
+  const [stats, setStats] = useState({ totalMembers: 0, activeMembers: 0, expiredMembers: 0, monthlyRevenue: 0 });
   const [expiringMembers, setExpiringMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [expiringPage, setExpiringPage] = useState(1);
   const [dayFilter, setDayFilter] = useState("all");
+  const [photoMember, setPhotoMember] = useState<any | null>(null);
 
-  // Queue state
   const [queue, setQueue] = useState<any[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const [queueState, setQueueState] = useState<QueueState>("idle");
@@ -248,39 +148,18 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsRes, expiringRes] = await Promise.all([
-          api.get("/reports/dashboard"),
-          api.get("/members/expiring-soon"),
-        ]);
+        const [statsRes, expiringRes] = await Promise.all([api.get("/reports/dashboard"), api.get("/members/expiring-soon")]);
         setStats(statsRes.data);
         setExpiringMembers(expiringRes.data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+      } catch (err) { console.error(err); }
+      finally { setLoading(false); }
     }
     fetchData();
   }, []);
 
-  // Derived filtered list
   const filteredExpiring = applyDayFilter(expiringMembers, dayFilter);
-
   const activeFilterOption = DAY_FILTER_OPTIONS.find((o) => o.value === dayFilter)!;
 
-  const handleDayFilterChange = (val: string) => {
-    if (queueState === "running") return; // lock filter during queue
-    setDayFilter(val);
-    setExpiringPage(1);
-  };
-
-  // ── Individual reminder (single row button)
-  const sendWhatsAppReminder = (member: any) => {
-    if (!member.phone) return;
-    window.open(buildWhatsAppUrl(member), "_blank");
-  };
-
-  // ── Start queue
   const startQueue = useCallback(() => {
     const members = applyDayFilter(expiringMembers, dayFilter);
     if (members.length === 0) return;
@@ -289,268 +168,98 @@ export default function Dashboard() {
     setQueueState("running");
   }, [expiringMembers, dayFilter]);
 
-  // ── Queue actions
-  const handleOpenWhatsApp = () => {
-    const member = queue[queueIndex];
-    if (member?.phone) window.open(buildWhatsAppUrl(member), "_blank");
-  };
+  const handleNext = () => { if (queueIndex + 1 >= queue.length) setQueueState("done"); else setQueueIndex(i => i + 1); };
 
-  const handleNext = () => {
-    if (queueIndex + 1 >= queue.length) {
-      setQueueState("done");
-    } else {
-      setQueueIndex((i) => i + 1);
-    }
-  };
+  if (loading) return <div className="p-8 text-center text-gray-500"><Loader2 size={18} className="animate-spin inline mr-2" /> Loading...</div>;
 
-  const handleSkip = () => {
-    if (queueIndex + 1 >= queue.length) {
-      setQueueState("done");
-    } else {
-      setQueueIndex((i) => i + 1);
-    }
-  };
-
-  const handleCancelQueue = () => {
-    setQueueState("idle");
-    setQueue([]);
-    setQueueIndex(0);
-  };
-
-  // Pagination
-  const expiringTotalPages = Math.ceil(filteredExpiring.length / PAGE_SIZE);
-  const paginatedExpiring = filteredExpiring.slice(
-    (expiringPage - 1) * PAGE_SIZE,
-    expiringPage * PAGE_SIZE
-  );
-
-  if (loading)
-    return (
-      <div className="p-8 text-center text-gray-500 flex items-center justify-center gap-2">
-        <Loader2 size={18} className="animate-spin" /> Loading dashboard...
-      </div>
-    );
+  const pExpiring = filteredExpiring.slice((expiringPage - 1) * PAGE_SIZE, expiringPage * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
-      {/* Queue Modal */}
+      {photoMember && <PhotoModal member={photoMember} onClose={() => setPhotoMember(null)} />}
       {(queueState === "running" || queueState === "done") && (
-        <QueueModal
-          queue={queue}
-          currentIndex={queueIndex}
-          filterLabel={activeFilterOption.label}
-          onOpenWhatsApp={handleOpenWhatsApp}
-          onNext={handleNext}
-          onSkip={handleSkip}
-          onCancel={handleCancelQueue}
-          queueState={queueState}
-        />
+        <QueueModal queue={queue} currentIndex={queueIndex} onNext={handleNext} onSkip={handleNext} onOpenWhatsApp={() => window.open(buildWhatsAppUrl(queue[queueIndex]), "_blank")} onCancel={() => setQueueState("idle")} queueState={queueState} />
       )}
 
-      {/* Top bar */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-extrabold text-[var(--foreground)] tracking-tight">Overview</h1>
-        <div className="bg-white px-4 py-2 rounded-lg shadow-sm font-medium text-sm text-[var(--muted-foreground)]">
-          {new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-        </div>
+        <div className="bg-white px-4 py-2 rounded-lg shadow-sm font-medium text-sm text-[var(--muted-foreground)] border">{format(new Date(), "MMMM dd, yyyy")}</div>
       </div>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Members"   value={stats.totalMembers}            icon={Users}      color="bg-blue-100 text-blue-600"                               href="/members?status=All" />
-        <StatCard title="Active Members"  value={stats.activeMembers}           icon={Activity}   color="bg-green-100 text-green-600"                             href="/members?status=Active" />
-        <StatCard title="Expired Members" value={stats.expiredMembers}          icon={Ban}        color="bg-red-100 text-red-600"                                href="/members?status=Expired" />
-        <StatCard title="Monthly Revenue" value={`₹${stats.monthlyRevenue}`}    icon={CreditCard} color="bg-[var(--accent)] text-[var(--foreground)]" />
+        <StatCard title="Total Members" value={stats.totalMembers} icon={Users} color="bg-blue-100 text-blue-600" href="/members?status=All" />
+        <StatCard title="Active Members" value={stats.activeMembers} icon={Activity} color="bg-green-100 text-green-600" href="/members?status=Active" />
+        <StatCard title="Expired Members" value={stats.expiredMembers} icon={Ban} color="bg-red-100 text-red-600" href="/members?status=Expired" />
+        <StatCard title="Monthly Revenue" value={`₹${stats.monthlyRevenue}`} icon={CreditCard} color="bg-[var(--accent)] text-[var(--foreground)]" />
       </div>
 
-      {/* Quick Payments table */}
       <div className="pt-2">
-        <div className="bg-white rounded-2xl shadow-sm border border-[var(--separator)] overflow-hidden">
-
-          {/* ── Section header ── */}
-          <div className="p-6 border-b flex flex-col sm:flex-row justify-between gap-4 bg-gray-50/50">
+        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+          <div className="p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
             <div>
-              <h3 className="text-xl font-bold text-[var(--foreground)] tracking-tight">
-                Quick Action For Late Payments
-              </h3>
-              <p className="text-sm text-[var(--muted-foreground)] mt-1 flex items-center gap-2 flex-wrap">
-                Expiring within the next 7 days
-                {expiringMembers.length > 0 && (
-                  <span className="inline-block bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                    {expiringMembers.length} total members
-                  </span>
-                )}
-                {/* Active filter badge */}
-                {dayFilter !== "all" && (
-                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border ${activeFilterOption.color}`}>
-                    <Filter size={10} />
-                    {activeFilterOption.label} · {filteredExpiring.length} shown
-                  </span>
-                )}
-                {/* Queue running indicator */}
-                {queueState === "running" && (
-                  <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 animate-pulse">
-                    🟢 Queue Running…
-                  </span>
-                )}
-              </p>
+              <h3 className="text-xl font-bold tracking-tight">Quick Action For Late Payments</h3>
+              <p className="text-sm text-gray-500 mt-1">Expiring within 7 days • {filteredExpiring.length} members shown</p>
             </div>
-
-            <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-              {/* Days filter dropdown — locked during queue */}
-              <div className="relative">
-                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
-                <select
-                  value={dayFilter}
-                  onChange={(e) => handleDayFilterChange(e.target.value)}
-                  disabled={queueState === "running"}
-                  className="pl-8 pr-4 py-2 text-sm border border-[var(--separator)] rounded-xl focus:ring-2 focus:ring-[var(--primary)] focus:outline-none bg-white appearance-none cursor-pointer font-medium text-[var(--foreground)] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  {DAY_FILTER_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Send to All → starts queue */}
-              <button
-                onClick={startQueue}
-                disabled={filteredExpiring.length === 0 || queueState === "running"}
-                className="flex items-center gap-2 text-sm font-semibold bg-green-500 text-white px-4 py-2 rounded-xl hover:bg-green-600 transition whitespace-nowrap shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <MessageSquare size={15} />
-                Send to All
-                {filteredExpiring.length > 0 && (
-                  <span className="bg-white/25 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
-                    {filteredExpiring.length}
-                  </span>
-                )}
-              </button>
+            <div className="flex items-center gap-3">
+              <select value={dayFilter} onChange={(e) => { setDayFilter(e.target.value); setExpiringPage(1); }} className="border px-4 py-2 rounded-xl text-sm bg-white outline-none">
+                {DAY_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <button onClick={startQueue} disabled={filteredExpiring.length === 0} className="bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:bg-green-600 transition disabled:opacity-50"><MessageSquare size={16} /> Send to All</button>
             </div>
           </div>
 
-          {/* ── Table ── */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left">
               <thead>
-                <tr className="bg-[var(--muted)] border-b text-[var(--muted-foreground)] text-xs uppercase tracking-wider">
-                  <th className="p-4 font-bold">#</th>
-                  <th className="p-4 font-bold">Member Name</th>
-                  <th className="p-4 font-bold">Phone Number</th>
-                  <th className="p-4 font-bold">Days Remaining</th>
-                  <th className="p-4 font-bold">Expiry Date</th>
-                  <th className="p-4 font-bold text-center">Action</th>
+                <tr className="bg-gray-50 border-b text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  <th className="p-4">#</th>
+                  <th className="p-4">Member</th>
+                  <th className="p-4">Phone</th>
+                  <th className="p-4">Remaining</th>
+                  <th className="p-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {paginatedExpiring.map((member: any, idx: number) => {
-                  const globalIdx = (expiringPage - 1) * PAGE_SIZE + idx;
-                  const isCurrentInQueue = queueState === "running" && queue[queueIndex]?._id === member._id;
-                  return (
-                    <tr
-                      key={member._id}
-                      className={`border-b last:border-0 transition-colors ${
-                        isCurrentInQueue
-                          ? "bg-green-50 ring-2 ring-inset ring-green-400"
-                          : member.daysRemaining === 0
-                          ? "bg-red-50 hover:bg-red-100"
-                          : "hover:bg-gray-50"
-                      }`}
-                    >
-                      <td className="p-4 text-xs text-gray-400 font-bold">
-                        {(expiringPage - 1) * PAGE_SIZE + idx + 1}
-                      </td>
-                      <td className="p-4">
-                        <div className="font-semibold text-[var(--foreground)] flex items-center gap-2">
-                          {isCurrentInQueue && (
-                            <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          )}
-                          <button
-                            onClick={() => router.push(`/payments?memberId=${member._id}&fromDashboard=true`)}
-                            className="text-[var(--primary)] hover:underline font-semibold transition-colors hover:text-[var(--foreground)] cursor-pointer"
-                            title="Click to record payment for this member"
-                          >
-                            {member.name}
-                          </button>
+                {pExpiring.map((m: any, idx: number) => (
+                  <tr key={m._id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                    <td className="p-4 text-[10px] text-gray-300 font-bold">{(expiringPage - 1) * PAGE_SIZE + idx + 1}</td>
+                    <td className="p-4">
+                      <button onClick={() => setPhotoMember(m)} className="flex items-center gap-3 text-left group">
+                        <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm overflow-hidden flex items-center justify-center shrink-0 bg-gray-100 group-hover:border-blue-200 transition-all">
+                          {m.photo ? <img src={m.photo} className="w-full h-full object-cover" /> : <User size={16} className="text-gray-400" />}
                         </div>
-                      </td>
-                      <td className="p-4 text-sm font-medium text-[var(--muted-foreground)]">
-                        {member.phone || "N/A"}
-                      </td>
-                      <td className="p-4">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${daysBadgeClass(member.daysRemaining)}`}>
-                          {daysBadgeLabel(member.daysRemaining)}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-1.5 text-sm font-medium text-[var(--muted-foreground)]">
-                          <CalendarDays size={14} className={member.daysRemaining <= 2 ? "text-red-400" : "text-orange-400"} />
-                          {member.expiryDate ? format(new Date(member.expiryDate), "MMM dd, yyyy") : "N/A"}
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <button
-                          disabled={!member.phone}
-                          onClick={() => sendWhatsAppReminder(member)}
-                          title={member.phone ? "Send WhatsApp Reminder" : "No phone number available"}
-                          className="inline-flex items-center gap-1.5 bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-600 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                        >
-                          <MessageSquare size={13} /> Send Reminder
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredExpiring.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center font-medium bg-green-50/50">
-                      {expiringMembers.length === 0 ? (
-                        <span className="text-green-600">✅ All good! No memberships are expiring within the next 7 days.</span>
-                      ) : (
-                        <span className="text-gray-500">No members match the selected filter.</span>
-                      )}
+                        <div><div className="font-bold text-sm text-gray-700 group-hover:text-blue-600 transition-colors">{m.name}</div><div className="text-[10px] text-gray-400 font-mono italic">View Profile Photo</div></div>
+                      </button>
+                    </td>
+                    <td className="p-4 text-sm text-gray-500">{m.phone}</td>
+                    <td className="p-4">
+                      <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${daysBadgeClass(m.daysRemaining)}`}>{daysBadgeLabel(m.daysRemaining)}</span>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => router.push(`/payments?memberId=${m._id}&fromDashboard=true`)} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"><CreditCard size={12} /> Payment</button>
+                        <button onClick={() => window.open(buildWhatsAppUrl(m), "_blank")} className="bg-green-50 text-green-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-green-100 hover:bg-green-600 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"><MessageSquare size={12} /> Reminder</button>
+                      </div>
                     </td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-
-          <Pagination
-            currentPage={expiringPage}
-            totalPages={expiringTotalPages}
-            onPageChange={(p) => setExpiringPage(p)}
-            totalItems={filteredExpiring.length}
-            itemsPerPage={PAGE_SIZE}
-          />
+          <Pagination currentPage={expiringPage} totalPages={Math.ceil(filteredExpiring.length / PAGE_SIZE)} onPageChange={setExpiringPage} totalItems={filteredExpiring.length} itemsPerPage={PAGE_SIZE} />
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Stat Card ────────────────────────────────────────────────────
 function StatCard({ title, value, icon: Icon, color, href }: any) {
   const router = useRouter();
   const isClickable = Boolean(href);
   return (
-    <div
-      onClick={() => isClickable && router.push(href)}
-      className={`bg-white p-6 rounded-2xl shadow-sm border border-[var(--separator)] flex items-center justify-between transition-all hover:shadow-md ${
-        isClickable ? "cursor-pointer hover:border-[var(--primary)] hover:scale-[1.02] active:scale-[0.99]" : ""
-      }`}
-      title={isClickable ? `View ${title}` : undefined}
-    >
-      <div>
-        <p className="text-sm font-medium text-[var(--muted-foreground)] mb-1">{title}</p>
-        <p className="text-3xl font-bold text-[var(--foreground)]">{value}</p>
-        {isClickable && (
-          <p className="text-xs text-[var(--primary)] font-medium mt-1 opacity-0 group-hover:opacity-100">View →</p>
-        )}
-      </div>
-      <div className={`p-4 rounded-full ${color}`}>
-        <Icon size={24} />
-      </div>
+    <div onClick={() => isClickable && router.push(href)} className={`bg-white p-6 rounded-2xl shadow-sm border flex items-center justify-between transition-all hover:shadow-md ${isClickable ? "cursor-pointer hover:border-blue-500 hover:scale-[1.02]" : ""}`}>
+      <div><p className="text-xs font-bold text-gray-400 uppercase mb-1 tracking-widest">{title}</p><p className="text-3xl font-bold text-gray-800 tracking-tight">{value}</p></div>
+      <div className={`p-4 rounded-2xl ${color} shadow-sm`}><Icon size={24} /></div>
     </div>
   );
 }

@@ -3,12 +3,16 @@
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { Plus, Edit2, Trash2 } from "lucide-react";
+import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 
 export default function PlansPage() {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPlan, setCurrentPlan] = useState({ id: "", name: "", price: "", duration: "" });
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [planIdToDelete, setPlanIdToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchPlans = async () => {
     try {
@@ -45,11 +49,24 @@ export default function PlansPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure?")) {
-      await api.delete(`/plans/${id}`);
+  const handleDelete = async () => {
+    if (!planIdToDelete) return;
+    try {
+      setIsDeleting(true);
+      await api.delete(`/plans/${planIdToDelete}`);
+      setIsDeleteModalOpen(false);
+      setPlanIdToDelete(null);
       fetchPlans();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const openDeleteModal = (id: string) => {
+    setPlanIdToDelete(id);
+    setIsDeleteModalOpen(true);
   };
 
   if (loading) return <div className="p-8">Loading...</div>;
@@ -74,7 +91,7 @@ export default function PlansPage() {
           <div key={plan._id} className="bg-white p-6 rounded-2xl shadow-sm border border-[var(--separator)] relative overflow-hidden flex flex-col justify-between hover:shadow-md transition-all">
             <div className="absolute top-0 right-0 p-4 flex gap-2">
               <button onClick={() => openEdit(plan)} className="text-[var(--primary)] hover:bg-[var(--muted)] p-2 rounded-full transition-colors"><Edit2 size={16} /></button>
-              <button onClick={() => handleDelete(plan._id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"><Trash2 size={16} /></button>
+              <button onClick={() => openDeleteModal(plan._id)} className="text-red-500 hover:bg-red-50 p-2 rounded-full transition-colors"><Trash2 size={16} /></button>
             </div>
             
             <div>
@@ -92,6 +109,15 @@ export default function PlansPage() {
           </div>
         ))}
       </div>
+
+      <DeleteConfirmationModal 
+        isOpen={isDeleteModalOpen} 
+        onClose={() => setIsDeleteModalOpen(false)} 
+        onConfirm={handleDelete} 
+        title="Delete Plan" 
+        message="Are you sure you want to delete this plan? This action cannot be undone and will affect any future membership calculations using this plan."
+        loading={isDeleting}
+      />
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
