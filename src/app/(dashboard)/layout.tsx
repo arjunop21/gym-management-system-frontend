@@ -32,6 +32,22 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     router.push("/login");
   };
 
+  const handleNavigation = (href: string) => {
+    setSidebarOpen(false);
+    if (href === "/") {
+      // Use replace for Dashboard so it doesn't stack on top of other pages
+      router.replace("/");
+    } else {
+      // If we are already on a sub-page, REPLACE it in history.
+      // This ensures that the only PREVIOUS entry in history is always the Dashboard.
+      if (pathname !== "/" && pathname !== href) {
+        router.replace(href);
+      } else {
+        router.push(href);
+      }
+    }
+  };
+
   return (
     <div className="flex h-screen bg-[var(--background)] overflow-hidden">
 
@@ -61,8 +77,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               style={{ width: "auto", height: "50px", objectFit: "contain" }}
               className="rounded drop-shadow-md"
             />
-            {/* <img src="https://drive.google.com/uc?export=view&id=12g6E8pdFlqyynrtogN63itWb0xIUij3g" alt="Logo" className="w-10 h-auto object-contain rounded drop-shadow-md" />
-            <span>Cochin Fitness</span> */}
           </div>
           <button className="lg:hidden text-white" onClick={() => setSidebarOpen(false)}>
             <X className="h-6 w-6" />
@@ -73,20 +87,19 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           {navigation.map((item) => {
             const isActive = pathname === item.href;
             return (
-              <Link
+              <button
                 key={item.name}
-                href={item.href}
+                onClick={() => handleNavigation(item.href)}
                 className={cn(
-                  "flex items-center px-4 py-3 rounded-xl transition-all font-medium",
+                  "w-full flex items-center px-4 py-3 rounded-xl transition-all font-medium",
                   isActive
-                    ? "bg-[var(--primary)] text-white shadow-md"
+                    ? "bg-[var(--primary)] text-white shadow-md font-bold"
                     : "text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                 )}
-                onClick={() => setSidebarOpen(false)}
               >
                 <item.icon className={cn("mr-3 h-5 w-5", isActive ? "text-white" : "text-[var(--primary)] opacity-70")} />
                 {item.name}
-              </Link>
+              </button>
             );
           })}
 
@@ -104,7 +117,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Topbar */}
         <header className="flex flex-shrink-0 items-center justify-between h-16 px-6 bg-white border-b border-border shadow-sm z-10">
           <div className="flex items-center lg:hidden">
             <button onClick={() => setSidebarOpen(true)} className="text-[var(--foreground)] hover:text-[var(--primary)]">
@@ -120,7 +132,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto w-full p-4 lg:p-8 bg-[var(--background)]">
           <div className="max-w-7xl mx-auto w-full">
             {children}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
 import api from '@/lib/api';
@@ -16,6 +16,14 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
+  // Redirect if already logged in
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (token) {
+      router.replace('/');
+    }
+  }, [router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -25,7 +33,9 @@ export default function Login() {
       const response = await api.post('/auth/login', { email, password });
       Cookies.set('token', response.data.token, { expires: 30 });
       Cookies.set('admin', JSON.stringify(response.data), { expires: 30 });
-      router.push('/');
+      
+      // Use replace instead of push so user can't go back to login page
+      router.replace('/');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to login');
     } finally {

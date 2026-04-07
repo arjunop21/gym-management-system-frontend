@@ -23,8 +23,14 @@ export const metadata: Metadata = {
     icon: "/gymlogo.png",
     apple: "/gymlogo.png",
   },
+};
+
+export const viewport = {
   themeColor: "#d2292d",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
