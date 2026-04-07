@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+// import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Script from "next/script";
 
+/*
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -11,10 +13,18 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+*/
 
 export const metadata: Metadata = {
   title: "Cochin Fitness Studio",
-  description: "Gym Management System",
+  description: "Official Gym Management System for CFS",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/gymlogo.png",
+    apple: "/gymlogo.png",
+  },
+  themeColor: "#d2292d",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0",
 };
 
 export default function RootLayout({
@@ -25,9 +35,27 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Script id="register-sw" strategy="afterInteractive">
+          {`
+            if ('serviceWorker' in navigator) {
+              window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(
+                  function(registration) {
+                    console.log('Service Worker registration successful with scope: ', registration.scope);
+                  },
+                  function(err) {
+                    console.log('Service Worker registration failed: ', err);
+                  }
+                );
+              });
+            }
+          `}
+        </Script>
+      </body>
     </html>
   );
 }
