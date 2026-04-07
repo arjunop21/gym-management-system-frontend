@@ -15,6 +15,7 @@ function PaymentsContent() {
   const router = useRouter();
 
   const [payments, setPayments] = useState<any[]>([]);
+  const [totalPayments, setTotalPayments] = useState(0);
   const [members, setMembers] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,21 +107,26 @@ function PaymentsContent() {
   };
 
   // ── Data fetch ───────────────────────────────────────────────
-  const fetchData = async () => {
+  const fetchData = useCallback(async (page: number) => {
     try {
       const [paymentsRes, membersRes, plansRes] = await Promise.all([
-        api.get("/payments"),
+        api.get(`/payments?page=${page}&limit=${PAGE_SIZE}`),
         api.get("/members"),
         api.get("/plans"),
       ]);
-      setPayments(paymentsRes.data);
+      setPayments(paymentsRes.data.payments);
+      setTotalPayments(paymentsRes.data.total);
       setMembers(membersRes.data);
       setPlans(plansRes.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(paymentsPage); 
+  }, [paymentsPage, fetchData]);
+
+  const handleRefresh = () => fetchData(paymentsPage);
 
   // ── Auto-open from dashboard / redirect ──────────────────────
   useEffect(() => {
@@ -177,7 +183,7 @@ function PaymentsContent() {
       setIsModalOpen(false);
       setForm(emptyForm);
       if (fromDashboard) { router.push("/"); return; }
-      fetchData();
+      handleRefresh();
     } catch (err: any) {
       setError(err?.response?.data?.message || "Failed to save payment.");
     } finally { setSaving(false); }
@@ -190,7 +196,7 @@ function PaymentsContent() {
       await api.delete(`/payments/${paymentIdToDelete}`);
       setIsDeleteModalOpen(false);
       setPaymentIdToDelete(null);
-      fetchData();
+      handleRefresh();
     } catch (err) {
       console.error(err);
     } finally {
@@ -207,15 +213,14 @@ function PaymentsContent() {
 
   const isEdit = Boolean(form.id);
   const memberLocked = isEdit || fromDashboard;
-  const paymentsTotalPages = Math.ceil(payments.length / PAGE_SIZE);
-  const paginatedPayments = payments.slice((paymentsPage - 1) * PAGE_SIZE, paymentsPage * PAGE_SIZE);
+  const paymentsTotalPages = Math.ceil(totalPayments / PAGE_SIZE);
 
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-2xl shadow-sm border flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Payments History</h1>
-          <p className="text-gray-500 text-sm">{payments.length} Transactions Found</p>
+          <p className="text-gray-500 text-sm">{totalPayments} Transactions Found</p>
         </div>
         <button onClick={openCreate} className="flex items-center gap-2 bg-[var(--primary)] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[var(--foreground)] transition-all shadow-md">
           <Plus size={16} /> Record Payment
@@ -235,7 +240,7 @@ function PaymentsContent() {
               </tr>
             </thead>
             <tbody>
-              {paginatedPayments.map((payment: any) => (
+              {payments.map((payment: any) => (
                 <tr key={payment._id} className="border-b last:border-0 hover:bg-gray-50">
                   <td className="p-4">
                     <div className="font-semibold">{payment.memberId?.name || "Unknown"}</div>
@@ -263,7 +268,7 @@ function PaymentsContent() {
             </tbody>
           </table>
         </div>
-        <Pagination currentPage={paymentsPage} totalPages={paymentsTotalPages} onPageChange={(p) => setPaymentsPage(p)} totalItems={payments.length} itemsPerPage={PAGE_SIZE} />
+        <Pagination currentPage={paymentsPage} totalPages={paymentsTotalPages} onPageChange={(p) => setPaymentsPage(p)} totalItems={totalPayments} itemsPerPage={PAGE_SIZE} />
       </div>
 
       <DeleteConfirmationModal 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import { CheckCircle2, UserCheck, Search, Trash2 } from "lucide-react";
 import { format } from "date-fns";
@@ -11,11 +11,12 @@ const PAGE_SIZE = 5;
 
 export default function AttendancePage() {
   const [attendanceLogs, setAttendanceLogs] = useState([]);
-  const [members, setMembers]               = useState([]);
-  const [loading, setLoading]               = useState(true);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedMember, setSelectedMember] = useState("");
-  const [status, setStatus]                 = useState("Present");
-  const [filterDate, setFilterDate]         = useState("");
+  const [status, setStatus] = useState("Present");
+  const [filterDate, setFilterDate] = useState("");
   const [logsPage, setLogsPage] = useState(1);
 
   // Search & Autocomplete state
@@ -27,22 +28,25 @@ export default function AttendancePage() {
   const [logIdToDelete, setLogIdToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (page: number) => {
     try {
       const [attendanceRes, membersRes] = await Promise.all([
-        api.get("/attendance"),
+        api.get(`/attendance?page=${page}&limit=${PAGE_SIZE}`),
         api.get("/members"),
       ]);
-      setAttendanceLogs(attendanceRes.data.filter((log: any) => log.memberId?.personalTraining));
+      setAttendanceLogs(attendanceRes.data.attendance);
+      setTotalLogs(attendanceRes.data.total);
       setMembers(membersRes.data.filter((m: any) => m.status === "Active" && m.personalTraining));
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    fetchData(logsPage); 
+  }, [logsPage, fetchData]);
 
   const handleMarkAttendance = async (e: any) => {
     e.preventDefault();
@@ -51,7 +55,7 @@ export default function AttendancePage() {
       await api.post("/attendance", { memberId: selectedMember, status });
       setSelectedMember("");
       setMemberSearch("");
-      fetchData();
+      fetchData(logsPage);
     } catch (err) {
       console.error(err);
     }
@@ -64,7 +68,7 @@ export default function AttendancePage() {
       await api.delete(`/attendance/${logIdToDelete}`);
       setIsDeleteModalOpen(false);
       setLogIdToDelete(null);
-      fetchData();
+      fetchData(logsPage);
     } catch (err) {
       console.error(err);
     } finally {
@@ -91,22 +95,12 @@ export default function AttendancePage() {
 
   if (loading) return <div className="p-8">Loading attendance records...</div>;
 
-  // Filter logs by date, then reverse (newest first)
-  const filteredLogs = attendanceLogs
-    .filter((log: any) => !filterDate || format(new Date(log.date), "yyyy-MM-dd") === filterDate)
-    .slice()
-    .reverse();
-
-  // Reset to page 1 when date filter changes — handled via derived value
-  const logsTotalPages  = Math.ceil(filteredLogs.length / PAGE_SIZE);
-  const paginatedLogs   = filteredLogs.slice(
-    (logsPage - 1) * PAGE_SIZE,
-    logsPage * PAGE_SIZE
-  );
+  const logsTotalPages = Math.ceil(totalLogs / PAGE_SIZE);
 
   const handleDateChange = (val: string) => {
     setFilterDate(val);
     setLogsPage(1);
+    // Note: Future improvement would be to send date filter to backend too
   };
 
   return (
@@ -190,7 +184,7 @@ export default function AttendancePage() {
             <div>
               <h2 className="text-xl font-bold text-[var(--foreground)] tracking-tight">Recent Logs</h2>
               <p className="text-sm text-[var(--muted-foreground)] mt-0.5 font-medium">
-                {filteredLogs.length} record{filteredLogs.length !== 1 ? "s" : ""}
+                {totalLogs} record{totalLogs !== 1 ? "s" : ""}
                 {filterDate && ` on ${format(new Date(filterDate + "T00:00:00"), "MMM dd, yyyy")}`}
               </p>
             </div>
@@ -226,7 +220,7 @@ export default function AttendancePage() {
                 </tr>
               </thead>
               <tbody>
-                {paginatedLogs.map((log: any, idx: number) => (
+                {attendanceLogs.map((log: any, idx: number) => (
                   <tr key={log._id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                     <td className="p-4 text-[10px] text-gray-300 font-bold">
                       {(logsPage - 1) * PAGE_SIZE + idx + 1}
@@ -255,7 +249,7 @@ export default function AttendancePage() {
                     </td>
                   </tr>
                 ))}
-                {filteredLogs.length === 0 && (
+                {attendanceLogs.length === 0 && (
                   <tr>
                     <td colSpan={6} className="p-12 text-center text-[var(--muted-foreground)] font-medium bg-gray-50/50">
                       {filterDate ? "No records found for the selected date." : "No attendance records found yet."}
@@ -271,7 +265,7 @@ export default function AttendancePage() {
             currentPage={logsPage}
             totalPages={logsTotalPages}
             onPageChange={(p) => setLogsPage(p)}
-            totalItems={filteredLogs.length}
+            totalItems={totalLogs}
             itemsPerPage={PAGE_SIZE}
           />
         </div>
