@@ -148,11 +148,17 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsRes, expiringRes] = await Promise.all([api.get("/reports/dashboard"), api.get("/members/expiring-soon")]);
+        const [statsRes, expiringRes] = await Promise.all([
+          api.get("/reports/dashboard"), 
+          api.get("/members/expiring-soon")
+        ]);
         setStats(statsRes.data);
         setExpiringMembers(expiringRes.data);
-      } catch (err) { console.error(err); }
-      finally { setLoading(false); }
+      } catch (err) { 
+        console.error("Dashboard Fetch Error:", err); 
+      } finally { 
+        setLoading(false); 
+      }
     }
     fetchData();
   }, []);

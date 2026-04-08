@@ -49,9 +49,20 @@ export default function RootLayout({
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
+                // DON'T use Service Worker on Localhost to avoid development caching issues
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                  navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let registration of registrations) {
+                      registration.unregister();
+                      console.log('Localhost SW Unregistered');
+                    }
+                  });
+                  return;
+                }
+
                 navigator.serviceWorker.register('/sw.js').then(
                   function(registration) {
-                    console.log('Service Worker registration successful with scope: ', registration.scope);
+                    console.log('Service Worker registration successful');
                   },
                   function(err) {
                     console.log('Service Worker registration failed: ', err);

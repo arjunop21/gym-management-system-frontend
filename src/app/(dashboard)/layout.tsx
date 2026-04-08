@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Cookies from "js-cookie";
@@ -26,6 +26,41 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
+  // Authentication & History Guard
+  useEffect(() => {
+    const token = Cookies.get('token');
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
+
+    // Handle back button behavior
+    if (pathname === '/') {
+      // On Dashboard: trap the back button to stay in the app
+      // Push multiple states to ensure user can't go back
+      window.history.pushState({ level: 1 }, '', window.location.href);
+      window.history.pushState({ level: 2 }, '', window.location.href);
+      
+      const handlePopState = (e: PopStateEvent) => {
+        // Always push state back when attempting to go back on dashboard
+        if (e.state?.level !== 2) {
+          window.history.pushState({ level: 2 }, '', window.location.href);
+        }
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    } else {
+      // On Sub-pages: back button should navigate to dashboard
+      const handlePopState = () => {
+        router.replace('/');
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, [router, pathname]);
+
   const handleLogout = () => {
     Cookies.remove("token");
     Cookies.remove("admin");
@@ -35,16 +70,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const handleNavigation = (href: string) => {
     setSidebarOpen(false);
     if (href === "/") {
-      // Use replace for Dashboard so it doesn't stack on top of other pages
+      // Always use replace for Dashboard
       router.replace("/");
     } else {
-      // If we are already on a sub-page, REPLACE it in history.
-      // This ensures that the only PREVIOUS entry in history is always the Dashboard.
-      if (pathname !== "/" && pathname !== href) {
-        router.replace(href);
-      } else {
-        router.push(href);
-      }
+      // Always use push for sub-pages to create a history entry
+      // When back button is clicked, it will navigate to dashboard
+      router.push(href);
     }
   };
 

@@ -3,6 +3,7 @@ import Cookies from 'js-cookie';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  timeout: 10000, // 10 seconds timeout
 });
 
 // Interceptor to attach the token to all requests
@@ -22,11 +23,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Clear credentials
       Cookies.remove('token');
       Cookies.remove('admin');
-      // Redirect to login if a 401 occurs (token expired or invalid)
+      
+      // Force redirect to login
       if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+        window.location.href = '/login?expired=true';
       }
     }
     return Promise.reject(error);
