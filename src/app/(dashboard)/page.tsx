@@ -36,10 +36,16 @@ function applyDayFilter(members: any[], filter: string): any[] {
   });
 }
 
-function buildWhatsAppUrl(member: any): string {
+function buildWhatsAppUrl(member: any, isExpired: boolean = false): string {
   const phone = (member.phone || "").replace(/\D/g, "");
-  const dayText = member.daysRemaining === 0 ? "today" : `in ${member.daysRemaining} days`;
-  const message = `Hello ${member.name}, your gym membership will expire ${dayText}. Please renew your membership to continue enjoying our services. Thank you! 🏋️`;
+  let message;
+  if (isExpired) {
+    const dayText = member.daysExpired === 0 ? "today" : `${member.daysExpired} days ago`;
+    message = `Hello ${member.name}, your gym membership expired ${dayText}. Please renew your membership to continue enjoying our services. Thank you! 🏋️`;
+  } else {
+    const dayText = member.daysRemaining === 0 ? "today" : `in ${member.daysRemaining} days`;
+    message = `Hello ${member.name}, your gym membership will expire ${dayText}. Please renew your membership to continue enjoying our services. Thank you! 🏋️`;
+  }
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
@@ -136,8 +142,10 @@ export default function Dashboard() {
   const router = useRouter();
   const [stats, setStats] = useState({ totalMembers: 0, activeMembers: 0, expiredMembers: 0, monthlyRevenue: 0 });
   const [expiringMembers, setExpiringMembers] = useState<any[]>([]);
+  const [expiredMembersList, setExpiredMembersList] = useState<any[]>([]);
+  const [isExpiredView, setIsExpiredView] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [expiringPage, setExpiringPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const [dayFilter, setDayFilter] = useState("all");
   const [photoMember, setPhotoMember] = useState<any | null>(null);
 
@@ -148,12 +156,14 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [statsRes, expiringRes] = await Promise.all([
+        const [statsRes, expiringRes, expiredRes] = await Promise.all([
           api.get("/reports/dashboard"), 
-          api.get("/members/expiring-soon")
+          api.get("/members/expiring-soon"),
+          api.get("/members/expired")
         ]);
         setStats(statsRes.data);
         setExpiringMembers(expiringRes.data);
+        setExpiredMembersList(expiredRes.data);
       } catch (err) { 
         console.error("Dashboard Fetch Error:", err); 
       } finally { 
@@ -164,27 +174,26 @@ export default function Dashboard() {
   }, []);
 
   const filteredExpiring = applyDayFilter(expiringMembers, dayFilter);
-  const activeFilterOption = DAY_FILTER_OPTIONS.find((o) => o.value === dayFilter)!;
+  const currentList = isExpiredView ? expiredMembersList : filteredExpiring;
 
   const startQueue = useCallback(() => {
-    const members = applyDayFilter(expiringMembers, dayFilter);
-    if (members.length === 0) return;
-    setQueue(members);
+    if (currentList.length === 0) return;
+    setQueue(currentList);
     setQueueIndex(0);
     setQueueState("running");
-  }, [expiringMembers, dayFilter]);
+  }, [currentList]);
 
   const handleNext = () => { if (queueIndex + 1 >= queue.length) setQueueState("done"); else setQueueIndex(i => i + 1); };
 
   if (loading) return <div className="p-8 text-center text-gray-500"><Loader2 size={18} className="animate-spin inline mr-2" /> Loading...</div>;
 
-  const pExpiring = filteredExpiring.slice((expiringPage - 1) * PAGE_SIZE, expiringPage * PAGE_SIZE);
+  const paginatedList = currentList.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div className="space-y-6">
       {photoMember && <PhotoModal member={photoMember} onClose={() => setPhotoMember(null)} />}
       {(queueState === "running" || queueState === "done") && (
-        <QueueModal queue={queue} currentIndex={queueIndex} onNext={handleNext} onSkip={handleNext} onOpenWhatsApp={() => window.open(buildWhatsAppUrl(queue[queueIndex]), "_blank")} onCancel={() => setQueueState("idle")} queueState={queueState} />
+        <QueueModal queue={queue} currentIndex={queueIndex} onNext={handleNext} onSkip={handleNext} onOpenWhatsApp={() => window.open(buildWhatsAppUrl(queue[queueIndex], isExpiredView), "_blank")} onCancel={() => setQueueState("idle")} queueState={queueState} />
       )}
 
       <div className="flex items-center justify-between">
@@ -202,15 +211,25 @@ export default function Dashboard() {
       <div className="pt-2">
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <div className="p-6 border-b flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50/50">
-            <div>
-              <h3 className="text-xl font-bold tracking-tight">Quick Action For Late Payments</h3>
-              <p className="text-sm text-gray-500 mt-1">Expiring within 7 days • {filteredExpiring.length} members shown</p>
+            <div className="flex items-center gap-4">
+              <div>
+                <h3 className="text-xl font-bold tracking-tight">Quick Action For Late Payments</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {isExpiredView ? `Expired Members \u2022 ${currentList.length} members shown` : `Expiring within 7 days \u2022 ${currentList.length} members shown`}
+                </p>
+              </div>
+              <div className="bg-gray-100 p-1 rounded-xl flex items-center ml-4">
+                <button onClick={() => { setIsExpiredView(false); setCurrentPage(1); }} className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${!isExpiredView ? "bg-white shadow-sm text-gray-800" : "text-gray-500 hover:text-gray-700"}`}>Expiring Soon</button>
+                <button onClick={() => { setIsExpiredView(true); setCurrentPage(1); }} className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${isExpiredView ? "bg-white shadow-sm text-gray-800" : "text-gray-500 hover:text-gray-700"}`}>Expired</button>
+              </div>
             </div>
             <div className="flex items-center gap-3">
-              <select value={dayFilter} onChange={(e) => { setDayFilter(e.target.value); setExpiringPage(1); }} className="border px-4 py-2 rounded-xl text-sm bg-white outline-none">
-                {DAY_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              <button onClick={startQueue} disabled={filteredExpiring.length === 0} className="bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:bg-green-600 transition disabled:opacity-50"><MessageSquare size={16} /> Send to All</button>
+              {!isExpiredView && (
+                <select value={dayFilter} onChange={(e) => { setDayFilter(e.target.value); setCurrentPage(1); }} className="border px-4 py-2 rounded-xl text-sm bg-white outline-none">
+                  {DAY_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              )}
+              <button onClick={startQueue} disabled={currentList.length === 0} className="bg-green-500 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm hover:bg-green-600 transition disabled:opacity-50"><MessageSquare size={16} /> Send to All</button>
             </div>
           </div>
 
@@ -221,14 +240,15 @@ export default function Dashboard() {
                   <th className="p-4">#</th>
                   <th className="p-4">Member</th>
                   <th className="p-4">Phone</th>
-                  <th className="p-4">Remaining</th>
+                  {isExpiredView && <th className="p-4">Join Date</th>}
+                  <th className="p-4">{isExpiredView ? "Expiry Date" : "Remaining"}</th>
                   <th className="p-4 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {pExpiring.map((m: any, idx: number) => (
+                {paginatedList.map((m: any, idx: number) => (
                   <tr key={m._id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
-                    <td className="p-4 text-[10px] text-gray-300 font-bold">{(expiringPage - 1) * PAGE_SIZE + idx + 1}</td>
+                    <td className="p-4 text-[10px] text-gray-300 font-bold">{(currentPage - 1) * PAGE_SIZE + idx + 1}</td>
                     <td className="p-4">
                       <button onClick={() => setPhotoMember(m)} className="flex items-center gap-3 text-left group">
                         <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm overflow-hidden flex items-center justify-center shrink-0 bg-gray-100 group-hover:border-blue-200 transition-all">
@@ -238,13 +258,23 @@ export default function Dashboard() {
                       </button>
                     </td>
                     <td className="p-4 text-sm text-gray-500">{m.phone}</td>
+                    {isExpiredView && (
+                      <td className="p-4 text-sm text-gray-500 font-medium">{format(new Date(m.joinDate), "MMM dd, yyyy")}</td>
+                    )}
                     <td className="p-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${daysBadgeClass(m.daysRemaining)}`}>{daysBadgeLabel(m.daysRemaining)}</span>
+                      {isExpiredView ? (
+                        <div className="flex flex-col gap-1">
+                           <span className="text-sm font-semibold text-gray-700">{format(new Date(m.expiryDate), "MMM dd, yyyy")}</span>
+                           <span className="text-[10px] font-bold text-red-600 bg-red-50 inline-block px-2 py-0.5 rounded-full w-fit">{m.daysExpired} days ago</span>
+                        </div>
+                      ) : (
+                        <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-bold ${daysBadgeClass(m.daysRemaining)}`}>{daysBadgeLabel(m.daysRemaining)}</span>
+                      )}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => router.push(`/payments?memberId=${m._id}&fromDashboard=true`)} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"><CreditCard size={12} /> Payment</button>
-                        <button onClick={() => window.open(buildWhatsAppUrl(m), "_blank")} className="bg-green-50 text-green-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-green-100 hover:bg-green-600 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"><MessageSquare size={12} /> Reminder</button>
+                        <button onClick={() => window.open(buildWhatsAppUrl(m, isExpiredView), "_blank")} className="bg-green-50 text-green-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-green-100 hover:bg-green-600 hover:text-white transition-all flex items-center gap-1.5 shadow-sm"><MessageSquare size={12} /> Reminder</button>
                       </div>
                     </td>
                   </tr>
@@ -252,7 +282,7 @@ export default function Dashboard() {
               </tbody>
             </table>
           </div>
-          <Pagination currentPage={expiringPage} totalPages={Math.ceil(filteredExpiring.length / PAGE_SIZE)} onPageChange={setExpiringPage} totalItems={filteredExpiring.length} itemsPerPage={PAGE_SIZE} />
+          <Pagination currentPage={currentPage} totalPages={Math.ceil(currentList.length / PAGE_SIZE)} onPageChange={setCurrentPage} totalItems={currentList.length} itemsPerPage={PAGE_SIZE} />
         </div>
       </div>
     </div>

@@ -61,6 +61,7 @@ export default function ReportsPage() {
   const [refreshing, setRefreshing]   = useState(false);
   const [revenueData, setRevenueData] = useState<any[]>([]);
   const [memberStatusData, setMemberStatusData] = useState<any[]>([]);
+  const [totalMembersCount, setTotalMembersCount] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   // Filter state
@@ -83,6 +84,7 @@ export default function ReportsPage() {
       const { data } = await api.get("/reports/dynamic", { params });
       setRevenueData(data.revenueData);
       setMemberStatusData(data.memberStatusData);
+      if (data.totalMembers !== undefined) setTotalMembersCount(data.totalMembers);
       setLastUpdated(new Date());
     } catch (err: any) {
       console.error("fetchChartData error:", err);
@@ -122,7 +124,8 @@ export default function ReportsPage() {
   const nonZeroPoints    = revenueData.filter(d => d.revenue > 0);
   const peakPoint        = revenueData.reduce((a, b) => b.revenue > a.revenue ? b : a, { name: "—", revenue: 0 });
   const avgRevenue       = nonZeroPoints.length ? Math.round(totalRevenue / nonZeroPoints.length) : 0;
-  const totalForPie      = memberStatusData.reduce((s, d) => s + d.value, 0);
+  const pieDataSum       = memberStatusData.reduce((s, d) => s + d.value, 0);
+  const displayTotal     = totalMembersCount || pieDataSum;
 
   const chartTitle = reportType === "monthly"
     ? `Revenue Report for ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
@@ -326,12 +329,12 @@ export default function ReportsPage() {
                 {reportType === "monthly"
                   ? `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
                   : `Year ${selectedYear}`}
-                {" · "}{totalForPie} total member{totalForPie !== 1 ? "s" : ""}
+                {" · "}{displayTotal} total member{displayTotal !== 1 ? "s" : ""}
               </p>
             </div>
           </div>
 
-          {totalForPie === 0 ? (
+          {pieDataSum === 0 ? (
             <div className="flex-1 flex items-center justify-center text-gray-400 text-sm font-medium h-72 flex-col gap-2">
               <BarChart2 size={32} className="text-gray-300" />
               <span>No member data available for this period</span>
